@@ -1708,8 +1708,8 @@ async def callback_number_do_buy(callback: types.CallbackQuery):
     resp = await number_api.get_number(server=server, country=country)
 
     if resp.get("success") and resp.get("number"):
-        number_str = resp["number"]
-        hash_code = resp.get("hash_code", "")
+        number_str = str(resp["number"]).strip()
+        hash_code = str(resp.get("hash_code", "")).strip()
         flag, name = get_country_display(country)
 
         # Bazaga saqlaymiz
@@ -1776,6 +1776,10 @@ async def callback_number_get_sms(callback: types.CallbackQuery):
         await callback.answer("⚠️ Raqam ma'lumotlari topilmadi.", show_alert=True)
         return
 
+    if record.get("user_id") != callback.from_user.id:
+        await callback.answer("⚠️ Bu raqam sizga tegishli emas!", show_alert=True)
+        return
+
     # Agar allaqachon kod olingan bo'lsa
     if record.get("sms_code"):
         await callback.answer(f"🔑 Sizning SMS kodingiz: {record['sms_code']}", show_alert=True)
@@ -1819,7 +1823,14 @@ async def callback_number_get_sms(callback: types.CallbackQuery):
         )
     else:
         err = resp.get("error", "Kod tekshirishda xatolik")
-        await callback.answer(f"⚠️ {err}", show_alert=True)
+        if "tegishli emas" in err.lower() or "not belong" in err.lower():
+            await callback.answer(
+                "⚠️ Bu raqamning amal qilish vaqti (15-20 daqiqa) tugagan yoki bekor qilingan.\n\n"
+                "Iltimos, yangi virtual raqam xarid qiling.",
+                show_alert=True
+            )
+        else:
+            await callback.answer(f"⚠️ {err}", show_alert=True)
 
 
 # ──────────────────────────────────────────

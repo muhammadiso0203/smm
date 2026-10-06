@@ -1287,11 +1287,6 @@ def active_number_keyboard(order_id: int) -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
-            text="Qayta tekshirish",
-            callback_data=f"num_sms:{order_id}",
-            icon_custom_emoji_id="5346269127059196142"
-        ),
-        InlineKeyboardButton(
             text="Asosiy menyu",
             callback_data="back_to_main",
             icon_custom_emoji_id="5416113713428057601"
