@@ -1,0 +1,17 @@
+# Maxfiy sozlamalar fayli
+.env
+
+# Ma'lumotlar bazasi
+*.db
+*.sqlite3
+
+# Log fayllari
+*.log
+
+# Python bytecode va cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
