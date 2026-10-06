@@ -63,8 +63,10 @@ from keyboards import (
     number_confirm_keyboard,
     active_number_keyboard,
     stars_menu,
-    stars_confirm_keyboard
+    stars_confirm_keyboard,
+    subscription_required_kb
 )
+from middlewares import check_user_subscription
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -119,6 +121,49 @@ async def cmd_start(message: types.Message, bot: Bot):
         reply_markup=my_inline_menu(is_admin=(user.id in ADMINS)),
         parse_mode="HTML"
     )
+
+
+# ──────────────────────────────────────────
+#  Majburiy Obuna tekshirish tugmasi
+# ──────────────────────────────────────────
+@router.callback_query(F.data == "check_subscription")
+async def cb_check_subscription(callback: types.CallbackQuery, bot: Bot):
+    user = callback.from_user
+    is_sub, unsub = await check_user_subscription(bot, user.id)
+
+    if is_sub:
+        await callback.answer("✅ Obunangiz muvaffaqiyatli tasdiqlandi! Xush kelibsiz.", show_alert=True)
+        text = (
+            f'<tg-emoji emoji-id="6006107551198874621">👋</tg-emoji> Salom, <b>{user.full_name}</b>!\n\n'
+            f'<tg-emoji emoji-id="5251203410396458957">🌟</tg-emoji> <b>SMM Botimizga xush kelibsiz!</b>\n\n'
+            f'<tg-emoji emoji-id="5231102735817918643">⚡️</tg-emoji> Quyidagi xizmatlardan birini tanlang:'
+        )
+        try:
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=my_inline_menu(is_admin=(user.id in ADMINS)),
+                parse_mode="HTML"
+            )
+        except Exception:
+            await callback.message.answer(
+                text=text,
+                reply_markup=my_inline_menu(is_admin=(user.id in ADMINS)),
+                parse_mode="HTML"
+            )
+    else:
+        await callback.answer("❌ Siz hali barcha homiy kanallarga a'zo bo'lmadingiz!", show_alert=True)
+        text = (
+            f'<tg-emoji emoji-id="6025976301838405549">⚠️</tg-emoji> <b>Botdan foydalanish uchun homiy kanallarga obuna bo\'ling!</b>\n\n'
+            f'Quyidagi qolgan kanallarga a\'zo bo\'ling va yana <b>"✅ Obunani tekshirish"</b> tugmasini bosing:'
+        )
+        try:
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=subscription_required_kb(unsub),
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
 
 
 # ──────────────────────────────────────────

@@ -14,7 +14,7 @@ from aiogram.types import Message
 from config import BOT_TOKEN, LOG_FILE
 from database import init_db
 from order_checker import check_orders_loop
-from middlewares import BanCheckMiddleware
+from middlewares import BanCheckMiddleware, SubscriptionMiddleware
 from handlers.admin import router as admin_router
 from handlers.user import router as user_router
 
@@ -67,6 +67,8 @@ async def main():
     # Middlewarelarni ulash
     dp.message.middleware(BanCheckMiddleware())
     dp.callback_query.middleware(BanCheckMiddleware())
+    dp.message.middleware(SubscriptionMiddleware())
+    dp.callback_query.middleware(SubscriptionMiddleware())
 
     # Routerlarni ulash (tartib juda muhim!)
     # 1. Admin buyruqlari

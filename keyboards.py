@@ -1370,3 +1370,27 @@ def stars_confirm_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def subscription_required_kb(channels: list) -> InlineKeyboardMarkup:
+    """Majburiy obuna kanallari va tekshirish tugmasi"""
+    builder = InlineKeyboardBuilder()
+    for i, ch in enumerate(channels, 1):
+        title = ch.get("title") or f"Kanal #{i}"
+        url = ch.get("url") or "https://t.me/"
+        builder.row(
+            InlineKeyboardButton(
+                text=f"📢 {title}",
+                url=url,
+                icon_custom_emoji_id="5206607081334906820"
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Obunani tekshirish",
+            callback_data="check_subscription",
+            icon_custom_emoji_id="6026257381678124710"
+        )
+    )
+    return builder.as_markup()
+
+
+

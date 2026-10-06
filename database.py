@@ -121,6 +121,17 @@ def init_db():
         )
     """)
 
+    # Majburiy obuna kanallari jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mandatory_channels (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_id      TEXT UNIQUE NOT NULL,
+            title           TEXT NOT NULL,
+            url             TEXT NOT NULL,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
     logger.info("✅ Ma'lumotlar bazasi tayyor")
@@ -599,5 +610,66 @@ def get_user_virtual_numbers(user_id: int, limit: int = 5):
     """, (user_id, limit)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ──────────────────────────────────────────
+#  Majburiy Obuna Kanallari funksiyalari
+# ──────────────────────────────────────────
+
+def add_mandatory_channel(channel_id: str, title: str, url: str) -> bool:
+    """Majburiy obuna kanalini qo'shish yoki yangilash"""
+    conn = get_connection()
+    try:
+        conn.execute("""
+            INSERT INTO mandatory_channels (channel_id, title, url)
+            VALUES (?, ?, ?)
+            ON CONFLICT(channel_id) DO UPDATE SET title = excluded.title, url = excluded.url
+        """, (str(channel_id).strip(), str(title).strip(), str(url).strip()))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"add_mandatory_channel xatosi: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_mandatory_channels() -> list:
+    """Barcha majburiy obuna kanallarini olish"""
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM mandatory_channels ORDER BY id ASC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_mandatory_channel_by_id(channel_db_id: int) -> dict:
+    """ID bo'yicha majburiy kanalni olish"""
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM mandatory_channels WHERE id = ?", (channel_db_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_mandatory_channel(channel_db_id: int) -> bool:
+    """ID bo'yicha majburiy kanalni o'chirish"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM mandatory_channels WHERE id = ?", (channel_db_id,))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def delete_mandatory_channel_by_channel_id(channel_id: str) -> bool:
+    """Chat ID bo'yicha majburiy kanalni o'chirish"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM mandatory_channels WHERE channel_id = ?", (str(channel_id).strip(),))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
 
 

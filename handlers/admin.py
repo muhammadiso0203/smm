@@ -39,6 +39,11 @@ from database import (
     set_star_price,
     get_orders_channel,
     set_orders_channel,
+    add_mandatory_channel,
+    get_mandatory_channels,
+    get_mandatory_channel_by_id,
+    delete_mandatory_channel,
+    delete_mandatory_channel_by_channel_id,
 )
 from smm_api import smm_api
 from number_api import number_api
@@ -59,6 +64,7 @@ class AdminState(StatesGroup):
     waiting_order_search = State()
     waiting_star_price = State()
     waiting_orders_channel = State()
+    waiting_mandatory_channel = State()
     waiting_broadcast_content = State()
     waiting_broadcast_button = State()
     confirm_broadcast = State()
@@ -122,10 +128,17 @@ def admin_main_kb() -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
+            text="Majburiy Obuna", 
+            callback_data="adm:mandatory_channels",
+            icon_custom_emoji_id="5206607081334906820"
+            ),
+        InlineKeyboardButton(
             text="Ommaviy Xabar", 
             callback_data="adm:broadcast",
             icon_custom_emoji_id="4992560350982309130"
             ),
+    )
+    builder.row(
         InlineKeyboardButton(
             text="Foydalanuvchi Menyusi", 
             callback_data="adm:to_user_menu",
@@ -1485,6 +1498,342 @@ async def cb_test_orders_channel(callback: types.CallbackQuery):
     except Exception as e:
         await callback.answer(f"❌ Xatolik yuz berdi: {e}", show_alert=True)
 
+
+# ──────────────────────────────────────────
+#  📢 MAJBURIY OBUNA (HOMIY KANALLAR)
+# ──────────────────────────────────────────
+@router.callback_query(F.data == "adm:mandatory_channels", F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_mandatory_channels_menu(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    channels = get_mandatory_channels()
+
+    if not channels:
+        ch_text = "<i>Hozircha majburiy obuna kanallari belgilanmagan (Majburiy obuna o'chiq).</i>\n"
+    else:
+        ch_text = "<b>📋 Ulangan homiy kanallar:</b>\n"
+        for i, ch in enumerate(channels, 1):
+            ch_text += (
+                f"\n<b>{i}. {ch['title']}</b>\n"
+                f" ├ <b>ID / User:</b> <code>{ch['channel_id']}</code>\n"
+                f" └ <b>Havola:</b> <a href=\"{ch['url']}\">{ch['url']}</a>\n"
+            )
+
+    text = (
+        f'<tg-emoji emoji-id="5206607081334906820">📢</tg-emoji> <b>Majburiy Obuna (Homiy Kanallar) Boshqaruvi</b>\n\n'
+        f'<i>Foydalanuvchilar bot xizmatlaridan foydalanishi uchun quyidagi kanallarga a\'zo bo\'lishi shart qilinadi.</i>\n\n'
+        f'📊 <b>Jami kanallar:</b> <b>{len(channels)} ta</b>\n\n'
+        f'{ch_text}\n'
+        f'⚠️ <b>Eslatma:</b> Bot ushbu kanallarda <b>Administrator</b> bo\'lishi shart!'
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="➕ Kanal Qo'shish",
+            callback_data="adm:add_mandatory_channel",
+            icon_custom_emoji_id="5370951118698339120"
+        ),
+    )
+    if channels:
+        builder.row(
+            InlineKeyboardButton(
+                text="➖ Kanal O'chirish",
+                callback_data="adm:del_mchannel_menu",
+                icon_custom_emoji_id="6028346797368283073"
+            ),
+            InlineKeyboardButton(
+                text="🔄 Holatni Tekshirish",
+                callback_data="adm:test_mandatory_channels",
+                icon_custom_emoji_id="5895288113537748673"
+            ),
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="Asosiy Panel",
+            callback_data="adm:main",
+            icon_custom_emoji_id="5416113713428057601"
+        )
+    )
+
+    try:
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+    except Exception:
+        await callback.message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:add_mandatory_channel", F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_add_mandatory_channel_prompt(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(AdminState.waiting_mandatory_channel)
+    text = (
+        f'<tg-emoji emoji-id="5206607081334906820">➕</tg-emoji> <b>Yangi Majburiy Kanal Qo\'shish</b>\n\n'
+        f'Kanal qo\'shish uchun quyidagi usullardan birini tanlang:\n\n'
+        f'1️⃣ Kanal username\'ini yuboring (masalan: <code>@mening_kanalim</code>)\n'
+        f'2️⃣ Kanal ID\'sini yuboring (masalan: <code>-1001234567890</code>)\n'
+        f'3️⃣ Kanaldan biror xabarni botga <b>Forward (uzatish)</b> qiling\n\n'
+        f'⚠️ <b>MUHIM SHART:</b>\n'
+        f'Avval botni o\'sha kanalga <b>Administrator</b> qilib qo\'shing va '
+        f'<i>"A\'zolarni ko\'rish / Taklif havolalari yaratish"</i> huquqlarini bering!\n\n'
+        f'<i>Bekor qilish uchun /cancel yozing.</i>'
+    )
+    await callback.message.edit_text(text, reply_markup=admin_back_kb("mandatory_channels"), parse_mode="HTML")
+    await callback.answer()
+
+
+@router.message(AdminState.waiting_mandatory_channel, F.from_user.func(lambda u: u.id in ADMINS))
+async def process_add_mandatory_channel(message: types.Message, state: FSMContext):
+    target_chat = None
+
+    # 1. Forward qilingan postdan olish
+    if message.forward_from_chat:
+        target_chat = message.forward_from_chat.id
+    elif message.text:
+        raw = message.text.strip()
+        # https://t.me/username yoki https://t.me/+invite
+        if "t.me/" in raw:
+            part = raw.split("t.me/")[1].split("/")[0].split("?")[0].strip()
+            if not part.startswith("+") and not part.startswith("joinchat"):
+                target_chat = f"@{part}"
+            else:
+                target_chat = raw
+        elif (raw.startswith("-100") and raw[1:].isdigit()) or (raw.startswith("-") and raw[1:].isdigit()) or raw.isdigit():
+            target_chat = int(raw)
+        elif raw.startswith("@"):
+            target_chat = raw
+        else:
+            target_chat = f"@{raw}"
+    else:
+        await message.answer(
+            "❌ Iltimos, kanal username'i (@kanal), ID'si yoki kanaldan forward qilingan xabar yuboring.",
+            reply_markup=admin_back_kb("mandatory_channels")
+        )
+        return
+
+    # Botning kanalga ulanishi va adminligini tekshirish
+    try:
+        bot_user = await message.bot.get_me()
+        chat_info = await message.bot.get_chat(target_chat)
+
+        # Adminlik huquqini tekshiramiz
+        try:
+            bot_member = await message.bot.get_chat_member(chat_info.id, bot_user.id)
+            if bot_member.status not in ("administrator", "creator"):
+                await message.answer(
+                    f'<tg-emoji emoji-id="6028346797368283073">❌</tg-emoji> <b>Bot ushbu kanalda Administrator emas!</b>\n\n'
+                    f'📢 <b>Kanal:</b> <b>{chat_info.title}</b> (<code>{chat_info.id}</code>)\n\n'
+                    f'Foydalanuvchilar obunasini tekshirish uchun bot kanalga <b>Admin</b> qilib tayinlanishi shart.\n'
+                    f'Iltimos, botni kanalga admin qilib, qaytadan yuboring:',
+                    reply_markup=admin_back_kb("mandatory_channels"),
+                    parse_mode="HTML"
+                )
+                return
+        except Exception as perm_err:
+            logger.warning(f"get_chat_member xatosi: {perm_err}")
+
+        # Havola yaratish yoki olish
+        if chat_info.username:
+            url = f"https://t.me/{chat_info.username}"
+            channel_identifier = f"@{chat_info.username}"
+        else:
+            channel_identifier = str(chat_info.id)
+            url = getattr(chat_info, "invite_link", None)
+            if not url:
+                try:
+                    invite = await message.bot.create_chat_invite_link(
+                        chat_id=chat_info.id,
+                        name="SMM Bot Majburiy Obuna"
+                    )
+                    url = invite.invite_link
+                except Exception as inv_err:
+                    logger.warning(f"Invite link yaratishda xato: {inv_err}")
+                    url = f"https://t.me/c/{str(chat_info.id).replace('-100', '')}/1"
+
+        # Bazaga saqlaymiz
+        success = add_mandatory_channel(
+            channel_id=channel_identifier,
+            title=chat_info.title,
+            url=url
+        )
+        await state.clear()
+
+        if success:
+            builder = InlineKeyboardBuilder()
+            builder.row(
+                InlineKeyboardButton(
+                    text="➕ Yana kanal qo'shish",
+                    callback_data="adm:add_mandatory_channel",
+                    icon_custom_emoji_id="5370951118698339120"
+                ),
+                InlineKeyboardButton(
+                    text="📢 Kanallar ro'yxati",
+                    callback_data="adm:mandatory_channels",
+                    icon_custom_emoji_id="5206607081334906820"
+                ),
+            )
+            builder.row(
+                InlineKeyboardButton(
+                    text="Asosiy Panel",
+                    callback_data="adm:main",
+                    icon_custom_emoji_id="5416113713428057601"
+                )
+            )
+
+            await message.answer(
+                f'<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> <b>Majburiy kanal muvaffaqiyatli qo\'shildi!</b>\n\n'
+                f'📢 <b>Kanal nomi:</b> <b>{chat_info.title}</b>\n'
+                f'🆔 <b>ID / Username:</b> <code>{channel_identifier}</code>\n'
+                f'🔗 <b>Havola:</b> <a href="{url}">{url}</a>\n'
+                f'🤖 <b>Bot holati:</b> Administrator ✅\n\n'
+                f'<i>Endi barcha oddiy foydalanuvchilar ushbu kanalga a\'zo bo\'lmaguncha botdan foydalana olmaydi.</i>',
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML",
+                disable_web_page_preview=True
+            )
+        else:
+            await message.answer(
+                "❌ Kanalni bazaga saqlashda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.",
+                reply_markup=admin_back_kb("mandatory_channels")
+            )
+
+    except Exception as e:
+        logger.error(f"process_add_mandatory_channel xatosi: {e}")
+        await message.answer(
+            f'<tg-emoji emoji-id="6028346797368283073">❌</tg-emoji> <b>Kanalga ulanib bo\'lmadi!</b>\n\n'
+            f'<b>Xatolik:</b> <i>{e}</i>\n\n'
+            f'<b>Mumkin bo\'lgan sabablar:</b>\n'
+            f'1. Bot kanalga qo\'shilmagan yoki <b>Admin</b> qilinmagan.\n'
+            f'2. Kanal username yoki ID xato kiritilgan.\n\n'
+            f'Iltimos, tekshirib qaytadan yuboring:',
+            reply_markup=admin_back_kb("mandatory_channels"),
+            parse_mode="HTML"
+        )
+
+
+@router.callback_query(F.data == "adm:del_mchannel_menu", F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_del_mchannel_menu(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    channels = get_mandatory_channels()
+
+    if not channels:
+        await callback.answer("❌ O'chirish uchun kanallar mavjud emas!", show_alert=True)
+        await cb_mandatory_channels_menu(callback, state)
+        return
+
+    builder = InlineKeyboardBuilder()
+    for ch in channels:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"🗑 {ch['title']}",
+                callback_data=f"adm:del_mch:{ch['id']}",
+                icon_custom_emoji_id="6028346797368283073"
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="🔙 Orqaga",
+            callback_data="adm:mandatory_channels",
+            icon_custom_emoji_id="5307502033103915040"
+        )
+    )
+
+    text = (
+        f'<tg-emoji emoji-id="6028346797368283073">🗑</tg-emoji> <b>Majburiy Kanalni O\'chirish</b>\n\n'
+        f'O\'chirmoqchi bo\'lgan kanalingiz ustiga bosing:'
+    )
+    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:del_mch:"), F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_del_mchannel_action(callback: types.CallbackQuery, state: FSMContext):
+    try:
+        ch_id = int(callback.data.split("adm:del_mch:")[1])
+        ch = get_mandatory_channel_by_id(ch_id)
+        deleted = delete_mandatory_channel(ch_id)
+
+        if deleted:
+            ch_name = ch['title'] if ch else "Kanal"
+            await callback.answer(f"✅ '{ch_name}' majburiy obunadan o'chirildi!", show_alert=True)
+        else:
+            await callback.answer("❌ Kanal topilmadi yoki allaqachon o'chirilgan!", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"❌ Xatolik: {e}", show_alert=True)
+
+    await cb_mandatory_channels_menu(callback, state)
+
+
+@router.callback_query(F.data == "adm:test_mandatory_channels", F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_test_mandatory_channels(callback: types.CallbackQuery):
+    channels = get_mandatory_channels()
+    if not channels:
+        await callback.answer("❌ Kanallar mavjud emas!", show_alert=True)
+        return
+
+    await callback.answer("🔄 Kanallar tekshirilmoqda...", show_alert=False)
+
+    report_lines = []
+    bot_user = await callback.bot.get_me()
+
+    for i, ch in enumerate(channels, 1):
+        target = str(ch.get("channel_id", "")).strip()
+        try:
+            if (target.startswith("-") and target[1:].isdigit()) or target.isdigit():
+                chat_target = int(target)
+            else:
+                chat_target = target if target.startswith("@") else f"@{target}"
+
+            chat_info = await callback.bot.get_chat(chat_target)
+            bot_member = await callback.bot.get_chat_member(chat_info.id, bot_user.id)
+
+            if bot_member.status in ("administrator", "creator"):
+                status_icon = "🟢"
+                status_text = "<b>Faol (Admin ✅)</b>"
+            else:
+                status_icon = "🟡"
+                status_text = "<b>Admin huquqi yo'q ⚠️</b>"
+
+            report_lines.append(
+                f"{status_icon} <b>{i}. {chat_info.title}</b>\n"
+                f" ├ <b>ID / Username:</b> <code>{target}</code>\n"
+                f" └ <b>Holat:</b> {status_text}"
+            )
+        except Exception as e:
+            report_lines.append(
+                f"🔴 <b>{i}. {ch['title']}</b>\n"
+                f" ├ <b>ID / Username:</b> <code>{target}</code>\n"
+                f" └ <b>Holat:</b> <i>Xatolik: {e}</i> ❌"
+            )
+
+    report_text = (
+        f'<tg-emoji emoji-id="5895288113537748673">🔄</tg-emoji> <b>Majburiy Kanallar Holati:</b>\n\n'
+        + "\n\n".join(report_lines)
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="🔄 Qayta tekshirish",
+            callback_data="adm:test_mandatory_channels",
+            icon_custom_emoji_id="5895288113537748673"
+        ),
+        InlineKeyboardButton(
+            text="📢 Kanallar menyusi",
+            callback_data="adm:mandatory_channels",
+            icon_custom_emoji_id="5206607081334906820"
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Asosiy Panel",
+            callback_data="adm:main",
+            icon_custom_emoji_id="5416113713428057601"
+        )
+    )
+
+    try:
+        await callback.message.edit_text(report_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    except Exception:
+        pass
 
 
 # ──────────────────────────────────────────
