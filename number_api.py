@@ -326,9 +326,19 @@ class NumberAPIClient:
             params["number"] = str(number).replace("+", "").strip()
         return await self._get(params)
 
+    async def get_stars_price(self) -> Dict[str, Any]:
+        """GrandSMM dan Stars narxlarini olish (action=getPrices)"""
+        return await self._get({"action": "getPrices"})
+
     async def buy_stars(self, username: str, amount: int) -> Dict[str, Any]:
-        """Telegram Stars sotib olish"""
-        clean_user = str(username).replace("@", "").strip()
+        """
+        Telegram Stars sotib olish (action=buyStars)
+        :param username: Telegram username
+        :param amount: Stars soni (kamida 50)
+        """
+        clean_user = str(username).strip()
+        clean_user = clean_user.replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "")
+        clean_user = clean_user.lstrip("@").strip().rstrip("/")
         return await self._get({
             "action": "buyStars",
             "username": clean_user,
@@ -337,3 +347,4 @@ class NumberAPIClient:
 
 
 number_api = NumberAPIClient()
+

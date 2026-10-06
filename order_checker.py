@@ -104,7 +104,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Miqdori:</b> <b>{stars_amount:,} Stars</b>\n'
                 f'<tg-emoji emoji-id="5201989772448381592">🎯</tg-emoji> <b>Qabul qiluvchi:</b> <code>{target_user}</code>\n'
                 f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov summasi:</b> <b>{price:,.0f} so\'m</b>\n'
-                f'<tg-emoji emoji-id="5339517416995039810">⏳</tg-emoji> <b>Holat:</b> <b>Kutilmoqda</b>\n'
+                f'<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> <b>Holat:</b> <b>Bajarildi (Yuborildi)</b>\n'
                 f'<tg-emoji emoji-id="5849724424957851226">📅</tg-emoji> <b>Sana:</b> <code>{time_now}</code>\n'
                 f'━━━━━━━━━━━━━━━━━━━━\n'
                 f'<tg-emoji emoji-id="5251203410396458957">🌟</tg-emoji> <i>Tezkor Telegram Stars xizmati</i>'
@@ -208,29 +208,17 @@ async def check_api_balance_alert(bot: Bot, threshold: float = 5000.0, cooldown_
             if bal < threshold:
                 _last_api_balance_alert = now
                 msg = (
-                    f'<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>DIQQAT: GrandSMM API Balansi Kam Qoldi!</b>\n\n'
-                    f'<tg-emoji emoji-id="5215172337044826665">🌐</tg-emoji> <b>Provayder:</b> GrandSMM API\n'
-                    f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Qolgan balans:</b> <b>{bal:,.0f} UZS</b>\n'
-                    f'<tg-emoji emoji-id="5339517416995039810">⏳</tg-emoji> <b>Cheklov darajasi:</b> 5,000 UZS\n\n'
-                    f'<tg-emoji emoji-id="5231102735817918643">⚡️</tg-emoji> <i>Foydalanuvchilar buyurtmalari to\'xtab qolmasligi uchun API hisobini to\'ldiring!</i>'
+                    f"⚠️ <b>DIQQAT: GrandSMM API Balansi Kam Qoldi!</b>\n\n"
+                    f"🌐 <b>Provayder:</b> GrandSMM API\n"
+                    f"💰 <b>Qolgan balans:</b> <b>{bal:,.0f} UZS</b>\n"
+                    f"⏳ <b>Cheklov darajasi:</b> 5,000 UZS\n\n"
+                    f"⚡️ <i>Foydalanuvchilar buyurtmalari to'xtab qolmasligi uchun API hisobini to'ldiring!</i>"
                 )
                 for admin_id in ADMINS:
                     try:
                         await bot.send_message(chat_id=admin_id, text=msg, parse_mode="HTML")
                     except Exception as ex:
                         logger.warning(f"Admin {admin_id} ga API balans ogohlantirishini yuborishda xatolik: {ex}")
-                        try:
-                            # Fallback oddiy emojilar bilan yuborish
-                            plain_msg = (
-                                f"⚠️ DIQQAT: GrandSMM API Balansi Kam Qoldi!\n\n"
-                                f"🌐 Provayder: GrandSMM API\n"
-                                f"💰 Qolgan balans: {bal:,.0f} UZS\n"
-                                f"⏳ Cheklov darajasi: 5,000 UZS\n\n"
-                                f"⚡️ Foydalanuvchilar buyurtmalari to'xtab qolmasligi uchun API hisobini to'ldiring!"
-                            )
-                            await bot.send_message(chat_id=admin_id, text=plain_msg)
-                        except Exception:
-                            pass
 
     except Exception as e:
         logger.error(f"check_api_balance_alert xatosi: {e}")

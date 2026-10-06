@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from config import ADMINS, CARD_NUMBER, CARD_HOLDER, ADMIN_USERNAME, STAR_PRICE_UZS
 from database import (
     add_user, get_user_balance, add_user_balance, create_pending_deposit,
-    add_order_record, get_user_orders, get_order_by_id,
+    add_order_record, update_order_status, get_user_orders, get_order_by_id,
     add_virtual_number, get_virtual_number_by_id, update_virtual_number_sms, get_user_virtual_numbers,
     get_star_price
 )
@@ -941,7 +941,7 @@ async def callback_stars(callback: types.CallbackQuery):
         f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars Xizmati</b>\n\n'
         f'<tg-emoji emoji-id="5258203794772085854">⚡️</tg-emoji> <b>O`zingiz yoki do\'stingiz uchun Telegram Stars</b> xarid qiling!\n\n'
         f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>1 ta Star narxi:</b> <b>{star_price:,.0f} so\'m</b>\n'
-        f'<tg-emoji emoji-id="5339517416995039810">⏱</tg-emoji> <b>Yetkazib berish:</b> 5 - 15 daqiqa\n\n'
+        f'<tg-emoji emoji-id="5339517416995039810">⏱</tg-emoji> <b>Yetkazib berish:</b> 10-30 soniya\n\n'
         f'<tg-emoji emoji-id="5231102735817918643">👇</tg-emoji> <i>Kerakli miqdorni tanlang:</i>'
     )
     await callback.message.edit_text(
@@ -1057,7 +1057,16 @@ async def process_stars_custom_amount(message: types.Message, state: FSMContext)
 async def callback_stars_for_me(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     user = callback.from_user
-    username = f"@{user.username}" if user.username else f"ID: {user.id} ({user.full_name})"
+    if not user.username:
+        await callback.answer(
+            "⚠️ Profilingizda Telegram username o'rnatilmagan!\n"
+            "Iltimos, Telegram username-ingizni matn ko'rinishida yuboring (masalan: @username)",
+            show_alert=True
+        )
+        return
+
+    clean_user = user.username.lstrip("@").strip()
+    username = f"@{clean_user}"
 
     await state.update_data(target_user=username)
     data = await state.get_data()
@@ -1078,14 +1087,13 @@ async def callback_stars_for_me(callback: types.CallbackQuery, state: FSMContext
 
 @router.message(StarsOrderFlow.waiting_for_username)
 async def process_stars_username(message: types.Message, state: FSMContext):
-    username = message.text.strip()
-    if not (username.startswith("@") or username.startswith("https://") or username.startswith("http://") or username.startswith("t.me/") or username.replace("_", "").isalnum()):
-        await message.answer('<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> Iltimos, to\'g\'ri username yoki havola kiriting!\nMasalan: <code>@username</code>')
+    raw_input = message.text.strip()
+    clean_user = raw_input.replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "").lstrip("@").strip().rstrip("/")
+    if not clean_user or not clean_user.replace("_", "").isalnum():
+        await message.answer('<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> Iltimos, to\'g\'ri Telegram username yoki havola kiriting!\nMasalan: <code>@username</code> yoki <code>https://t.me/username</code>')
         return
 
-    if not username.startswith("@") and not username.startswith("http") and not username.startswith("t.me/"):
-        username = "@" + username
-
+    username = f"@{clean_user}"
     await state.update_data(target_user=username)
     data = await state.get_data()
 
@@ -1110,7 +1118,12 @@ async def callback_stars_confirm(callback: types.CallbackQuery, state: FSMContex
     user_id = callback.from_user.id
     total_price = data.get("total_price", 0)
     stars_amount = data.get("stars_amount", 0)
-    target_user = data.get("target_user", "")
+    target_user = data.get("target_user", "").strip()
+
+    clean_username = target_user.replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "").lstrip("@").strip().rstrip("/")
+    if not clean_username:
+        await callback.answer("⚠️ Noto'g'ri username ko'rsatilgan.", show_alert=True)
+        return
 
     current_balance = get_user_balance(user_id)
     if current_balance < total_price:
@@ -1144,70 +1157,117 @@ async def callback_stars_confirm(callback: types.CallbackQuery, state: FSMContex
 
     await state.clear()
 
+    # Kutilmoqda xabari
+    status_msg = await callback.message.edit_text(
+        f'<tg-emoji emoji-id="5339517416995039810">⏳</tg-emoji> <b>Stars buyurtmasi GrandSMM serveriga yuborilmoqda...</b>',
+        parse_mode="HTML"
+    )
+
     # Balansdan mablag'ni yechamiz
     add_user_balance(user_id, -total_price)
 
-    # Buyurtma ID yaratamiz va bazaga saqlaymiz
+    # GrandSMM API orqali Stars sotib olish
     import time
-    order_id = int(time.time()) % 10000000
-    add_order_record(
-        order_id=order_id,
-        user_id=user_id,
-        service_id=9999,
-        service_title=f"Telegram Stars ({stars_amount} ta)",
-        quantity=stars_amount,
-        price=total_price,
-        link=target_user
-    )
+    resp = await number_api.buy_stars(username=clean_username, amount=stars_amount)
 
-    # Kanalga xabar yuboramiz
-    try:
-        from order_checker import send_order_to_channel
-        await send_order_to_channel(callback.bot, "stars", {
-            "order_id": order_id,
-            "user_id": user_id,
-            "user_name": callback.from_user.full_name,
-            "username": callback.from_user.username,
-            "quantity": stars_amount,
-            "target_user": target_user,
-            "price": total_price
-        })
-    except Exception:
-        pass
+    if resp.get("success"):
+        api_order_id = resp.get("order_id") or f"ST-{int(time.time())}"
+        order_num = int(time.time()) % 10000000
 
-    rem_balance = get_user_balance(user_id)
+        # Bazaga buyurtmani yozish
+        add_order_record(
+            order_id=order_num,
+            user_id=user_id,
+            service_id=9999,
+            service_title=f"Telegram Stars ({stars_amount} ta)",
+            quantity=stars_amount,
+            price=total_price,
+            link=f"@{clean_username}"
+        )
+        update_order_status(order_num, "Completed")
 
-    # Adminga bildirishnoma yuboramiz
-    for admin_id in ADMINS:
+        # Kanalga xabar yuborish
         try:
-            await bot.send_message(
-                chat_id=admin_id,
-                text=(
-                    f'🔔 <b>YANGI STARS BUYURTMASI!</b>\n\n'
-                    f'🆔 <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-                    f'👤 <b>Buyurtmachi:</b> {callback.from_user.full_name} (<code>{user_id}</code>)\n'
-                    f'⭐ <b>Miqdor:</b> <b>{stars_amount:,} Stars</b>\n'
-                    f'🎯 <b>Qabul qiluvchi:</b> <code>{target_user}</code>\n'
-                    f'💰 <b>To\'lov:</b> <b>{total_price:,} so\'m</b>'
-                ),
-                parse_mode="HTML"
-            )
+            from order_checker import send_order_to_channel
+            await send_order_to_channel(callback.bot, "stars", {
+                "order_id": api_order_id,
+                "user_id": user_id,
+                "user_name": callback.from_user.full_name,
+                "username": callback.from_user.username,
+                "quantity": stars_amount,
+                "target_user": f"@{clean_username}",
+                "price": total_price
+            })
         except Exception:
             pass
 
-    text = (
-        f'<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> <b>Stars buyurtmangiz qabul qilindi!</b>\n\n'
-        f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-        f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Miqdor:</b> <b>{stars_amount:,} Stars</b>\n'
-        f'<tg-emoji emoji-id="5201989772448381592">👤</tg-emoji> <b>Qabul qiluvchi:</b> <code>{target_user}</code>\n'
-        f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov:</b> <b>{total_price:,} so\'m</b>\n'
-        f'<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> <b>Qolgan balans:</b> <b>{rem_balance:,.0f} so\'m</b>\n\n'
-        f'<tg-emoji emoji-id="5339517416995039810">⏳</tg-emoji> <i>Yulduzlar 5-15 daqiqa ichida yetkaziladi!</i>'
-    )
+        rem_balance = get_user_balance(user_id)
 
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
-    await callback.message.edit_text(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        # Adminga bildirishnoma yuboramiz
+        for admin_id in ADMINS:
+            try:
+                await bot.send_message(
+                    chat_id=admin_id,
+                    text=(
+                        f'🔔 <b>YANGI STARS BUYURTMASI (AVTOMATIK BAJARILDI)!</b>\n\n'
+                        f'🆔 <b>API Order ID:</b> <code>{api_order_id}</code>\n'
+                        f'👤 <b>Buyurtmachi:</b> {callback.from_user.full_name} (<code>{user_id}</code>)\n'
+                        f'⭐ <b>Miqdor:</b> <b>{stars_amount:,} Stars</b>\n'
+                        f'🎯 <b>Qabul qiluvchi:</b> <code>@{clean_username}</code>\n'
+                        f'💰 <b>To\'lov:</b> <b>{total_price:,} so\'m</b>\n'
+                        f'✅ <b>Holat:</b> Muvaffaqiyatli yuborildi'
+                    ),
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        text = (
+            f'<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> <b>Stars buyurtmangiz muvaffaqiyatli bajarildi!</b>\n\n'
+            f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>{api_order_id}</code>\n'
+            f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Miqdor:</b> <b>{stars_amount:,} Stars</b>\n'
+            f'<tg-emoji emoji-id="5201989772448381592">👤</tg-emoji> <b>Qabul qiluvchi:</b> <code>@{clean_username}</code>\n'
+            f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov:</b> <b>{total_price:,} so\'m</b>\n'
+            f'<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> <b>Qolgan balans:</b> <b>{rem_balance:,.0f} so\'m</b>\n\n'
+            f'<tg-emoji emoji-id="5251203410396458957">🌟</tg-emoji> <i>Telegram Stars hisobingizga yetkazildi!</i>'
+        )
+
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
+        await status_msg.edit_text(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+    else:
+        # Xatolik yuz bersa: pulni qaytaramiz (refund)
+        add_user_balance(user_id, total_price)
+        error_msg = resp.get("error", "Noma'lum xatolik yuz berdi")
+
+        # Adminga xatolik haqida xabar berish
+        for admin_id in ADMINS:
+            try:
+                await bot.send_message(
+                    chat_id=admin_id,
+                    text=(
+                        f'⚠️ <b>STARS BUYURTMASIDA XATOLIK:</b>\n\n'
+                        f'👤 <b>Foydalanuvchi:</b> {callback.from_user.full_name} (<code>{user_id}</code>)\n'
+                        f'⭐ <b>Miqdor:</b> <b>{stars_amount:,} Stars</b>\n'
+                        f'🎯 <b>Qabul qiluvchi:</b> <code>@{clean_username}</code>\n'
+                        f'❌ <b>Xatolik:</b> <code>{error_msg}</code>\n'
+                        f'💳 <i>Foydalanuvchiga {total_price:,} so\'m qaytarildi.</i>'
+                    ),
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
+        await status_msg.edit_text(
+            f'<tg-emoji emoji-id="6028346797368283073">❌</tg-emoji> <b>Stars buyurtmasi amalga oshmadi:</b>\n\n'
+            f'Sabab: <i>{error_msg}</i>\n\n'
+            f'<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>{total_price:,} so\'m</b> mablag\' balansingizga to\'liq qaytarildi.',
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
+        )
 
 
 @router.callback_query(F.data.in_(["cancel", "cancel_order", "stars_cancel", "cancel_deposit"]))
