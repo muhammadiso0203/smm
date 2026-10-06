@@ -1544,9 +1544,20 @@ async def callback_number_server(callback: types.CallbackQuery):
             pass
 
     res = await number_api.get_countries(server=server)
-    if not res.get("success") or not res.get("countries"):
+    if not res.get("success"):
         await callback.message.edit_text(
-            f'<tg-emoji emoji-id="6032903688949862892">❌</tg-emoji> Server {server} da davlatlar ma\'lumotini olib bo\'lmadi. Qaytadan urinib ko\'ring.',
+            f'<tg-emoji emoji-id="6032903688949862892">❌</tg-emoji> Server {server} bilan bog\'lanishda xatolik yuz berdi. Qaytadan urinib ko\'ring.',
+            reply_markup=number_servers_menu(),
+            parse_mode="HTML"
+        )
+        return
+
+    countries = res.get("countries", {})
+    if not countries:
+        other_server = 2 if server == 1 else 1
+        await callback.message.edit_text(
+            f'<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>Server {server} da ayni paytda mavjud davlatlar yo\'q.</b>\n\n'
+            f'Iltimos, <b>Server {other_server}</b> ni tanlab ko\'ring!',
             reply_markup=number_servers_menu(),
             parse_mode="HTML"
         )
@@ -1573,11 +1584,11 @@ async def callback_number_cheap(callback: types.CallbackQuery):
     page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
 
     res = await number_api.get_countries(server=server)
-    if not res.get("success") or not res.get("countries"):
-        await callback.answer("Davlatlar ma'lumotini olib bo'lmadi!", show_alert=True)
+    countries = res.get("countries", {})
+    if not res.get("success") or not countries:
+        other_server = 2 if server == 1 else 1
+        await callback.answer(f"Server {server} da hozirda davlatlar yo'q. Server {other_server} ni tanlang.", show_alert=True)
         return
-
-    countries = res["countries"]
     text = (
         f'<tg-emoji emoji-id="5444965061749644170">📱</tg-emoji> <b>Server {server} — 🔥 Arzon nomerlar:</b>\n\n'
         f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <i>Narxlar eng arzonidan boshlab saralangan:</i>\n'

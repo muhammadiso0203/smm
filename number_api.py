@@ -284,15 +284,40 @@ class NumberAPIClient:
             return self._countries_cache[server]
 
         res = await self._get({"action": "available_countries", "server": server})
-        if res.get("success") and "countries" in res:
+        if res.get("success"):
+            countries_raw = res.get("countries")
             multiplier = 1.0 + (PRICE_MARGIN_PERCENT / 100.0)
-            for c_code, info in res["countries"].items():
-                if isinstance(info, dict) and "price" in info:
-                    try:
-                        base_price = float(info["price"])
-                        info["price"] = round(base_price * multiplier)
-                    except (ValueError, TypeError):
-                        pass
+            parsed_countries = {}
+            if isinstance(countries_raw, dict):
+                for c_code, info in countries_raw.items():
+                    if isinstance(info, dict):
+                        info_copy = info.copy()
+                        if "price" in info_copy:
+                            try:
+                                base_price = float(info_copy["price"])
+                                info_copy["price"] = round(base_price * multiplier)
+                            except (ValueError, TypeError):
+                                pass
+                        parsed_countries[str(c_code).upper()] = info_copy
+                    elif isinstance(info, (int, float, str)):
+                        try:
+                            parsed_countries[str(c_code).upper()] = {"price": round(float(info) * multiplier)}
+                        except (ValueError, TypeError):
+                            pass
+            elif isinstance(countries_raw, list):
+                for item in countries_raw:
+                    if isinstance(item, dict):
+                        c_code = item.get("code") or item.get("country") or item.get("id")
+                        if c_code:
+                            item_copy = item.copy()
+                            try:
+                                base_price = float(item_copy.get("price", 0))
+                                item_copy["price"] = round(base_price * multiplier)
+                            except (ValueError, TypeError):
+                                pass
+                            parsed_countries[str(c_code).upper()] = item_copy
+
+            res["countries"] = parsed_countries
             self._countries_cache[server] = res
             self._cache_time[server] = now
         return res
