@@ -345,17 +345,11 @@ class NumberAPIClient:
                  yoki {"success": False, "status": "waiting"}
         """
         params = {"action": "getCode", "server": int(server)}
-        clean_num = "".join(filter(str.isdigit, str(number)))
         if int(server) == 1:
-            if hash_code:
-                params["hash_code"] = str(hash_code).strip()
-            elif clean_num:
-                params["number"] = clean_num
+            params["hash_code"] = str(hash_code).strip()
         else:
-            if clean_num:
-                params["number"] = clean_num
-            if hash_code:
-                params["hash_code"] = str(hash_code).strip()
+            clean_num = "".join(filter(str.isdigit, str(number)))
+            params["number"] = clean_num
         return await self._get(params)
 
     async def get_stars_price(self) -> Dict[str, Any]:

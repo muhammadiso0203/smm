@@ -1815,22 +1815,15 @@ async def callback_number_get_sms(callback: types.CallbackQuery):
             InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601")
         )
         await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
-    elif resp.get("status") == "waiting":
+    elif resp.get("status") == "waiting" or (not resp.get("success") and resp.get("status") == "waiting"):
         await callback.answer(
             "⏳ SMS kod hali kelmadi.\n\n"
-            "Telegramdan kod yuborilganiga ishonch hosil qiling va 5-10 soniyadan keyin qayta bosing!",
+            "Telegram ilovasiga kod yuborilganiga ishonch hosil qiling va 5-10 soniyadan so'ng qayta bosing!",
             show_alert=True
         )
     else:
         err = resp.get("error", "Kod tekshirishda xatolik")
-        if "tegishli emas" in err.lower() or "not belong" in err.lower():
-            await callback.answer(
-                "⚠️ Bu raqamning amal qilish vaqti (15-20 daqiqa) tugagan yoki bekor qilingan.\n\n"
-                "Iltimos, yangi virtual raqam xarid qiling.",
-                show_alert=True
-            )
-        else:
-            await callback.answer(f"⚠️ {err}", show_alert=True)
+        await callback.answer(f"⚠️ {err}", show_alert=True)
 
 
 # ──────────────────────────────────────────
