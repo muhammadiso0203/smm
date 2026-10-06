@@ -348,8 +348,9 @@ class NumberAPIClient:
         if int(server) == 1:
             params["hash_code"] = str(hash_code).strip()
         else:
-            clean_num = "".join(filter(str.isdigit, str(number)))
-            params["number"] = clean_num
+            raw = str(number).strip()
+            digits = "".join(filter(str.isdigit, raw))
+            params["number"] = f"+{digits}" if digits else raw
         return await self._get(params)
 
     async def get_stars_price(self) -> Dict[str, Any]:
