@@ -296,7 +296,7 @@ def format_admin_order_status(status_raw: str, itype: str = "smm") -> str:
     elif st in ["received"]:
         return "Qabul qilindi" if itype == "number" else "Yetkazildi"
     elif st in ["completed", "bajarildi", "yakunlandi", "success", "done", "выполнено"]:
-        return "Bajarilgan"
+        return "Qabul qilindi" if itype == "number" else "Bajarilgan"
     elif st in ["in progress", "processing", "jarayonda", "bajarilmoqda"]:
         return "Bajarilmoqda"
     elif st in ["canceled", "cancelled", "bekor qilindi", "bekor", "refunded", "failed", "canceled/refunded", "timeout"]:
@@ -404,7 +404,7 @@ def admin_order_card_kb(item_type: str, item_id: int, user_id: int) -> InlineKey
         )
         builder.row(
             InlineKeyboardButton(
-                text="Completed qilish", 
+                text="Qabul qilindi qilish", 
                 callback_data=f"adm:setnum_comp:{item_id}",
                 icon_custom_emoji_id="6011046912078787676"
             ),
@@ -1206,8 +1206,8 @@ async def cb_set_order_refund(callback: types.CallbackQuery):
 @router.callback_query(F.data.startswith("adm:setnum_comp:"), F.from_user.func(lambda u: u.id in ADMINS))
 async def cb_set_number_completed(callback: types.CallbackQuery):
     oid = int(callback.data.split(":")[2])
-    update_virtual_number_status(oid, "completed")
-    await callback.answer("✅ Raqam statusi 'Completed' ga o'zgartirildi!", show_alert=True)
+    update_virtual_number_status(oid, "received")
+    await callback.answer("✅ Raqam statusi 'Qabul qilindi' ga o'zgartirildi!", show_alert=True)
     await send_order_card(callback, oid, item_type="number")
 
 
