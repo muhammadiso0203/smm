@@ -166,7 +166,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
         builder = InlineKeyboardBuilder()
         builder.row(
             InlineKeyboardButton(
-                text="🔍 Buyurtma holati",
+                text="Buyurtma holati",
                 callback_data=f"chk_ord:{order_id}",
                 icon_custom_emoji_id="5936143551854285132"
             )
@@ -174,7 +174,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
         if bot_uname:
             builder.row(
                 InlineKeyboardButton(
-                    text="🚀 Bot orqali buyurtma berish",
+                    text="Bot orqali buyurtma berish",
                     url=f"https://t.me/{bot_uname}",
                     icon_custom_emoji_id="5456432998092133477"
                 )

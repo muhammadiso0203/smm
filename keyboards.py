@@ -76,7 +76,7 @@ def my_inline_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
     if is_admin:
         builder.row(
             InlineKeyboardButton(
-                text="👑 Admin Panel",
+                text="Admin Panel",
                 callback_data="adm:main",
                 icon_custom_emoji_id="5444856076954520455",
                 style="primary"
@@ -1396,14 +1396,14 @@ def subscription_required_kb(channels: list) -> InlineKeyboardMarkup:
         url = ch.get("url") or "https://t.me/"
         builder.row(
             InlineKeyboardButton(
-                text=f"📢 {title}",
+                text=f"{title}",
                 url=url,
                 icon_custom_emoji_id="5206607081334906820"
             )
         )
     builder.row(
         InlineKeyboardButton(
-            text="✅ Obunani tekshirish",
+            text="Obunani tekshirish",
             callback_data="check_subscription",
             icon_custom_emoji_id="6026257381678124710"
         )
@@ -1453,7 +1453,7 @@ def user_orders_category_keyboard(category: str, page: int, total_pages: int, wa
     if waiting_numbers:
         for num_item in waiting_numbers[:2]:
             builder.row(InlineKeyboardButton(
-                text=f"📩 #{num_item['id']} ({num_item.get('number', '')}) SMS tekshirish",
+                text=f"#{num_item['id']} ({num_item.get('number', '')}) SMS tekshirish",
                 callback_data=f"num_sms:{num_item['id']}",
                 icon_custom_emoji_id="5456432998092133477"
             ))

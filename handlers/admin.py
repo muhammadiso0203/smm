@@ -299,15 +299,15 @@ def admin_orders_list_kb(orders: list, category: str, page: int, total_pages: in
 
         if itype == "stars":
             qty = item.get("quantity", 0)
-            btn_text = f"⭐ #{oid} • {qty} Stars ({st})"
+            btn_text = f"#{oid} • {qty} Stars ({st})"
             emoji_id = "5897792062291449826"
         elif itype == "number":
             num_str = item.get("number") or "Noma'lum"
-            btn_text = f"📱 #{oid} • {num_str} ({st})"
+            btn_text = f"#{oid} • {num_str} ({st})"
             emoji_id = "5859232223865081255"
         else:
             title = (item.get("title") or "SMM Xizmat")[:15]
-            btn_text = f"📦 #{oid} • {title} ({st})"
+            btn_text = f"#{oid} • {title} ({st})"
             emoji_id = "6028346797368283073"
 
         builder.row(InlineKeyboardButton(
@@ -1582,7 +1582,7 @@ async def process_orders_channel(message: types.Message, state: FSMContext):
         test_kb = InlineKeyboardBuilder()
         test_kb.row(
             InlineKeyboardButton(
-                text="🔍 Buyurtma holati",
+                text="Buyurtma holati",
                 callback_data=f"chk_ord:{order_id}",
                 icon_custom_emoji_id="5936143551854285132"
             )
@@ -1590,7 +1590,7 @@ async def process_orders_channel(message: types.Message, state: FSMContext):
         if bot_uname:
             test_kb.row(
                 InlineKeyboardButton(
-                    text="🚀 Bot orqali buyurtma berish",
+                    text="Bot orqali buyurtma berish",
                     url=f"https://t.me/{bot_uname}",
                     icon_custom_emoji_id="5456432998092133477"
                 )
@@ -1707,7 +1707,7 @@ async def cb_test_orders_channel(callback: types.CallbackQuery):
         test_kb = InlineKeyboardBuilder()
         test_kb.row(
             InlineKeyboardButton(
-                text="🔍 Buyurtma holati",
+                text="Buyurtma holati",
                 callback_data=f"chk_ord:{order_id}",
                 icon_custom_emoji_id="5936143551854285132"
             )
@@ -1715,7 +1715,7 @@ async def cb_test_orders_channel(callback: types.CallbackQuery):
         if bot_uname:
             test_kb.row(
                 InlineKeyboardButton(
-                    text="🚀 Bot orqali buyurtma berish",
+                    text="Bot orqali buyurtma berish",
                     url=f"https://t.me/{bot_uname}",
                     icon_custom_emoji_id="5456432998092133477"
                 )
@@ -1763,7 +1763,7 @@ async def cb_mandatory_channels_menu(callback: types.CallbackQuery, state: FSMCo
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="➕ Kanal Qo'shish",
+            text="Kanal Qo'shish",
             callback_data="adm:add_mandatory_channel",
             icon_custom_emoji_id="5370951118698339120"
         ),
@@ -1771,12 +1771,12 @@ async def cb_mandatory_channels_menu(callback: types.CallbackQuery, state: FSMCo
     if channels:
         builder.row(
             InlineKeyboardButton(
-                text="➖ Kanal O'chirish",
+                text="Kanal O'chirish",
                 callback_data="adm:del_mchannel_menu",
                 icon_custom_emoji_id="6028346797368283073"
             ),
             InlineKeyboardButton(
-                text="🔄 Holatni Tekshirish",
+                text="Holatni Tekshirish",
                 callback_data="adm:test_mandatory_channels",
                 icon_custom_emoji_id="5895288113537748673"
             ),
@@ -1956,14 +1956,14 @@ async def cb_del_mchannel_menu(callback: types.CallbackQuery, state: FSMContext)
     for ch in channels:
         builder.row(
             InlineKeyboardButton(
-                text=f"🗑 {ch['title']}",
+                text=f"{ch['title']}",
                 callback_data=f"adm:del_mch:{ch['id']}",
                 icon_custom_emoji_id="6028346797368283073"
             )
         )
     builder.row(
         InlineKeyboardButton(
-            text="🔙 Orqaga",
+            text="Orqaga",
             callback_data="adm:mandatory_channels",
             icon_custom_emoji_id="5307502033103915040"
         )
@@ -2045,12 +2045,12 @@ async def cb_test_mandatory_channels(callback: types.CallbackQuery):
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="🔄 Qayta tekshirish",
+            text="Qayta tekshirish",
             callback_data="adm:test_mandatory_channels",
             icon_custom_emoji_id="5895288113537748673"
         ),
         InlineKeyboardButton(
-            text="📢 Kanallar menyusi",
+            text="Kanallar menyusi",
             callback_data="adm:mandatory_channels",
             icon_custom_emoji_id="5206607081334906820"
         ),

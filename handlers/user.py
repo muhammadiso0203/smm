@@ -1247,7 +1247,7 @@ async def callback_stars_confirm(callback: types.CallbackQuery, state: FSMContex
         )
 
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
+        builder.row(InlineKeyboardButton(text="Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
         await status_msg.edit_text(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
     else:
@@ -1274,7 +1274,7 @@ async def callback_stars_confirm(callback: types.CallbackQuery, state: FSMContex
                 pass
 
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
+        builder.row(InlineKeyboardButton(text="Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601"))
         await status_msg.edit_text(
             f'<tg-emoji emoji-id="6028346797368283073">❌</tg-emoji> <b>Stars buyurtmasi amalga oshmadi:</b>\n\n'
             f'Sabab: <i>{error_msg}</i>\n\n'
@@ -1991,7 +1991,7 @@ async def callback_number_get_sms(callback: types.CallbackQuery):
 
         builder = InlineKeyboardBuilder()
         builder.row(
-            InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601")
+            InlineKeyboardButton(text="Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601")
         )
         await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     elif resp.get("status") == "waiting" or (not resp.get("success") and resp.get("status") == "waiting"):
