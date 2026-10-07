@@ -1,3 +1,4 @@
+import html
 import logging
 from aiogram import types, Router, F, Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
