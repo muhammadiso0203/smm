@@ -504,8 +504,7 @@ async def cb_search_user_prompt(callback: types.CallbackQuery, state: FSMContext
     await state.set_state(AdminState.waiting_user_search)
     await callback.message.edit_text(
         "🔍 <b>Foydalanuvchi Qidiruvi</b>\n\n"
-        "Foydalanuvchining <b>Telegram ID</b> raqamini yoki <b>@username</b>ini yuboring:\n"
-        "<i>(Bekor qilish uchun /cancel)</i>",
+        "Foydalanuvchining <b>Telegram ID</b> raqamini yoki <b>@username</b>ini yuboring:",
         reply_markup=admin_back_kb("users"),
         parse_mode="HTML"
     )
@@ -1206,8 +1205,7 @@ async def cb_change_star_price_prompt(callback: types.CallbackQuery, state: FSMC
     await callback.message.edit_text(
         f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Yangi Stars narxini belgilash</b>\n\n'
         f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> Joriy narx: <b>{current_price:,.0f} so\'m</b>\n\n'
-        f'Yangi narxni so\'mda kiriting (masalan: <code>260</code> yoki <code>280</code>):\n'
-        f'<i>(Bekor qilish uchun /cancel)</i>',
+        f'Yangi narxni so\'mda kiriting (masalan: <code>260</code> yoki <code>280</code>):\n',
         reply_markup=admin_back_kb("stars_price"),
         parse_mode="HTML"
     )
@@ -1305,8 +1303,7 @@ async def cb_set_orders_channel_prompt(callback: types.CallbackQuery, state: FSM
         f'<tg-emoji emoji-id="5206607081334906820">📢</tg-emoji> <b>Buyurtmalar Kanalini Belgilash</b>\n\n'
         f'Joriy kanal: {channel_display}\n\n'
         f"Kanal username'ini (masalan: <code>@mening_kanalim</code>) yoki kanal ID'sini (masalan: <code>-1001234567890</code>) yuboring:\n\n"
-        f"<i>⚠️ Avval botni o'sha kanalga <b>Admin</b> qilib qo'shganingizga ishonch hosil qiling!</i>\n"
-        f"<i>(Bekor qilish uchun /cancel)</i>",
+        f"<i>⚠️ Avval botni o'sha kanalga <b>Admin</b> qilib qo'shganingizga ishonch hosil qiling!</i>",
         reply_markup=admin_back_kb("orders_channel"),
         parse_mode="HTML"
     )
@@ -1574,7 +1571,6 @@ async def cb_add_mandatory_channel_prompt(callback: types.CallbackQuery, state: 
         f'⚠️ <b>MUHIM SHART:</b>\n'
         f'Avval botni o\'sha kanalga <b>Administrator</b> qilib qo\'shing va '
         f'<i>"A\'zolarni ko\'rish / Taklif havolalari yaratish"</i> huquqlarini bering!\n\n'
-        f'<i>Bekor qilish uchun /cancel yozing.</i>'
     )
     await callback.message.edit_text(text, reply_markup=admin_back_kb("mandatory_channels"), parse_mode="HTML")
     await callback.answer()
@@ -1847,7 +1843,6 @@ async def cb_start_broadcast(event: types.Message | types.CallbackQuery, state: 
         '<tg-emoji emoji-id="4992560350982309130">📢</tg-emoji> <b>Ommaviy Xabar (Broadcast)</b>\n\n'
         'Barcha faol foydalanuvchilarga yuboriladigan xabarni jo\'nating.\n'
         '<i>(Matn, Rasm, Video yoki Fayl ko\'rinishida yuborishingiz mumkin)</i>\n\n'
-        'Bekor qilish uchun /cancel yozing.'
     )
     if isinstance(event, types.CallbackQuery):
         await event.message.edit_text(text, reply_markup=admin_back_kb("main"), parse_mode="HTML")
@@ -1892,8 +1887,7 @@ async def cb_bcast_add_btn_prompt(callback: types.CallbackQuery, state: FSMConte
     await callback.message.edit_text(
         "🔘 <b>Tugma qo'shish</b>\n\n"
         "Tugma matni va havolani quyidagi formatda yuboring:\n"
-        "<code>Tugma Matni | https://t.me/kanal_linki</code>\n\n"
-        "Bekor qilish uchun /cancel",
+        "<code>Tugma Matni | https://t.me/kanal_linki</code>\n\n",
         parse_mode="HTML"
     )
     await callback.answer()

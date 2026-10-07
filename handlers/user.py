@@ -1359,8 +1359,7 @@ async def callback_hisob_toldirish(callback: types.CallbackQuery, state: FSMCont
         f'<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> <b>Hisobni to\'ldirish</b>\n\n'
         f'Qancha summa to\'ldirmoqchisiz?\n'
         f'<i>Minimal to\'ldirish summasi: 1 000 so\'m</i>\n\n'
-        f'Iltimos, faqat raqam kiriting (masalan: <code>10000</code>):\n'
-        f'Bekor qilish uchun: /cancel',
+        f'Iltimos, faqat raqam kiriting (masalan: <code>10000</code>):\n',
         reply_markup=keyboard.as_markup(),
         parse_mode="HTML"
     )
@@ -1421,10 +1420,10 @@ async def render_user_orders_menu(user_id: int):
     text = (
         '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening Buyurtmalarim</b>\n\n'
         'Kerakli buyurtmalar bo\'limini tanlang:\n\n'
-        f'• 📦 <b>SMM Buyurtmalari:</b> <code>{counts.get("smm", 0)} ta</code>\n'
-        f'• ⭐ <b>Telegram Stars:</b> <code>{counts.get("stars", 0)} ta</code>\n'
-        f'• 📱 <b>Virtual Raqamlar:</b> <code>{counts.get("number", 0)} ta</code>\n\n'
-        f'📊 <b>Jami buyurtmalaringiz:</b> <b>{counts.get("total", 0)} ta</b>'
+        f'<tg-emoji emoji-id="6028346797368283073">📦</tg-emoji> <b>SMM Buyurtmalari:</b> <code>{counts.get("smm", 0)} ta</code>\n'
+        f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars:</b> <code>{counts.get("stars", 0)} ta</code>\n'
+        f'<tg-emoji emoji-id="5859232223865081255">📱</tg-emoji> <b>Virtual Raqamlar:</b> <code>{counts.get("number", 0)} ta</code>\n\n'
+        f'<tg-emoji emoji-id="5444965061749644170">📊</tg-emoji> <b>Jami buyurtmalaringiz:</b> <b>{counts.get("total", 0)} ta</b>'
     )
     return text, user_orders_main_menu(counts)
 
@@ -1441,15 +1440,15 @@ async def render_user_orders(user_id: int, category: str = "smm", page: int = 1)
     orders = get_user_unified_orders(user_id=user_id, category=category, limit=PAGE_SIZE, offset=offset)
 
     category_names = {
-        "smm": "📦 SMM Buyurtmalari",
-        "number": "📱 Virtual Raqamlar",
-        "stars": "⭐ Telegram Stars"
+        "smm": '<tg-emoji emoji-id="6028346797368283073">📦</tg-emoji> <b>SMM Buyurtmalari</b>',
+        "number": '<tg-emoji emoji-id="5859232223865081255">📱</tg-emoji> <b>Virtual Raqamlar</b>',
+        "stars": '<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars</b>'
     }
-    cat_title = category_names.get(category, "📦 SMM Buyurtmalari")
+    cat_title = category_names.get(category, '<tg-emoji emoji-id="6028346797368283073">📦</tg-emoji> <b>SMM Buyurtmalari</b>')
 
     header = (
-        f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>{cat_title}</b>\n\n'
-        f'📊 <b>Jami:</b> <b>{cat_total} ta</b> | Sahifa: <b>{page}/{total_pages}</b>\n'
+        f'<b>{cat_title}</b>\n\n'
+        f'<tg-emoji emoji-id="5444965061749644170">📊</tg-emoji> <b>Jami:</b> <b>{cat_total} ta</b> | Sahifa: <b>{page}/{total_pages}</b>\n'
         f'━━━━━━━━━━━━━━━━━━━━\n\n'
     )
 

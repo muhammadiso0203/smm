@@ -1416,7 +1416,7 @@ def user_orders_main_menu(counts: dict) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text=f"📦 SMM Buyurtmalari ({counts.get('smm', 0)})",
+            text=f"SMM Buyurtmalari ({counts.get('smm', 0)})",
             callback_data="myord:smm:1",
             icon_custom_emoji_id="6028346797368283073"
         )
@@ -1462,28 +1462,28 @@ def user_orders_category_keyboard(category: str, page: int, total_pages: int, wa
     if total_pages > 1:
         nav_buttons = []
         if page > 1:
-            nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"myord:{category}:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
-        nav_buttons.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
+            nav_buttons.append(InlineKeyboardButton(text="Oldingi", callback_data=f"myord:{category}:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
+        nav_buttons.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop", icon_custom_emoji_id="6323234179555263965"))
         if page < total_pages:
-            nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"myord:{category}:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi", callback_data=f"myord:{category}:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
         builder.row(*nav_buttons)
 
     # 3. Bo'limlarga qaytish va yangilash
     builder.row(
         InlineKeyboardButton(
-            text="🔄 Yangilash", 
+            text="Yangilash", 
             callback_data=f"myord:{category}:{page}",
-            icon_custom_emoji_id="5416113713428057601"
+            icon_custom_emoji_id="5346269127059196142"
         ),
         InlineKeyboardButton(
-            text="📁 Bo'limlar", 
+            text="Bo'limlar", 
             callback_data="buyurtmalarim",
-            icon_custom_emoji_id="5864114012542736772"
+            icon_custom_emoji_id="6026239398650056451"
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text="🔙 Asosiy menyu", 
+            text="Asosiy menyu", 
             callback_data="back_to_main",
             icon_custom_emoji_id="5416113713428057601"
         )
