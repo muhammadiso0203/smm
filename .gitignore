@@ -12,6 +12,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
+# Telethon sessiyalari
+*.session
+*.session-journal
+
+# Virtual muhit
 .venv/
 venv/
 ENV/
+
+

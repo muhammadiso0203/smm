@@ -1,6 +1,7 @@
 """
 🤖 SMM Bot — Userbot Sessiyasini Faollashtirish Skripti
 """
+import os
 import asyncio
 from telethon import TelegramClient
 from telethon.errors import (
@@ -26,8 +27,9 @@ async def main():
     print("📲 TELEGRAM USERBOTNI FAOLLASHTIRISH")
     print("=" * 60)
 
+    session_name = "smm_userbot_session"
     client = TelegramClient(
-        "smm_userbot_session", 
+        session_name, 
         TELEGRAM_API_ID, 
         TELEGRAM_API_HASH,
         device_model="Desktop PC",
@@ -35,7 +37,36 @@ async def main():
         app_version="4.16.8",
         lang_code="uz"
     )
-    await client.connect()
+
+    try:
+        await client.connect()
+    except Exception as e:
+        if "AuthKeyDuplicated" in str(e) or "AuthKeyDuplicatedError" in str(e.__class__.__name__):
+            print("\n⚠️ Eski sessiya IP-manzil o'zgargani uchun bekor qilingan. Yangi toza sessiya yaratilmoqda...")
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            for ext in ["", ".session", ".session-journal"]:
+                fname = session_name + ext
+                if os.path.exists(fname):
+                    try:
+                        os.remove(fname)
+                    except Exception:
+                        pass
+            client = TelegramClient(
+                session_name, 
+                TELEGRAM_API_ID, 
+                TELEGRAM_API_HASH,
+                device_model="Desktop PC",
+                system_version="Linux x86_64",
+                app_version="4.16.8",
+                lang_code="uz"
+            )
+            await client.connect()
+        else:
+            print(f"❌ Ulanishda xatolik: {e}")
+            return
 
     if await client.is_user_authorized():
         me = await client.get_me()

@@ -121,7 +121,25 @@ async def humo_notification_handler(event):
 
 async def main():
     logger.info("🚀 Userbot ishga tushmoqda...")
-    await client.start()
+    try:
+        await client.connect()
+    except Exception as e:
+        if "AuthKeyDuplicated" in str(e) or "AuthKeyDuplicatedError" in str(e.__class__.__name__):
+            logger.error("❌ Sessiya eskirgan/bekor qilingan. Iltimos 'python login_userbot.py' orqali qayta kiring!")
+            for ext in ["", ".session", ".session-journal"]:
+                fname = "smm_userbot_session" + ext
+                if os.path.exists(fname):
+                    try:
+                        os.remove(fname)
+                    except Exception:
+                        pass
+            return
+        raise e
+
+    if not await client.is_user_authorized():
+        logger.warning("⚠️ Akkauntga kirilmagan! Iltimos, avval 'python login_userbot.py' orqali Telegramga kiring.")
+        return
+
     me = await client.get_me()
     logger.info(f"✅ Userbot akkauntga ulandi: {me.first_name} (@{me.username or 'username_mavjud_emas'})")
     logger.info(f"👀 @{HUMOCARD_BOT_USERNAME} xabarlari kuzatuvga olindi...")
