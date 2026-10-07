@@ -288,22 +288,42 @@ def admin_orders_kb(counts: dict = None) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def format_admin_order_status(status_raw: str, itype: str = "smm") -> str:
+    """Buyurtma holatini o'zbek tiliga o'girish"""
+    st = str(status_raw or "").strip().lower()
+    if st in ["waiting"]:
+        return "Kutilmoqda"
+    elif st in ["received"]:
+        return "Qabul qilindi" if itype == "number" else "Yetkazildi"
+    elif st in ["completed", "bajarildi", "yakunlandi", "success", "done", "выполнено"]:
+        return "Bajarilgan"
+    elif st in ["in progress", "processing", "jarayonda", "bajarilmoqda"]:
+        return "Bajarilmoqda"
+    elif st in ["canceled", "cancelled", "bekor qilindi", "bekor", "refunded", "failed", "canceled/refunded", "timeout"]:
+        return "Bekor qilingan"
+    elif st in ["partial", "qisman", "partial/refunded"]:
+        return "Qisman"
+    elif st in ["pending"]:
+        return "Kutilmoqda"
+    return status_raw or "Kutilmoqda"
+
+
 def admin_orders_list_kb(orders: list, category: str, page: int, total_pages: int) -> InlineKeyboardMarkup:
     """Buyurtmalar ro'yxati va sahifalash klaviaturasi"""
     builder = InlineKeyboardBuilder()
     for item in orders:
         itype = item.get("type", "smm")
         oid = item["id"]
-        st = item.get("status", "Pending")
+        st = format_admin_order_status(item.get("status", "Pending"), itype)
         price = float(item.get("price", 0.0) or 0.0)
 
         if itype == "stars":
             qty = item.get("quantity", 0)
-            btn_text = f"#{oid} • {qty} Stars ({st})"
+            btn_text = f"#{oid} • {qty:,} Stars ({st})"
             emoji_id = "5897792062291449826"
         elif itype == "number":
             num_str = item.get("number") or "Noma'lum"
-            btn_text = f"#{oid} • {num_str} ({st})"
+            btn_text = f"{num_str} ({st})"
             emoji_id = "5859232223865081255"
         else:
             title = (item.get("title") or "SMM Xizmat")[:15]
@@ -1056,7 +1076,7 @@ async def send_order_card(event: types.Message | types.CallbackQuery, item_or_id
     oid = item.get("order_id") or item.get("id")
     uid = item.get("user_id")
     price = float(item.get("price", 0.0) or 0.0)
-    st = item.get("status", "Pending")
+    st = format_admin_order_status(item.get("status", "Pending"), itype)
     created = item.get("created_at", "—")
 
     if itype == "stars":
@@ -1068,7 +1088,7 @@ async def send_order_card(event: types.Message | types.CallbackQuery, item_or_id
             f'👤 <b>Foydalanuvchi ID:</b> <code>{uid}</code>\n'
             f'🌟 <b>Miqdor:</b> <b>{qty:,} Stars</b>\n'
             f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov:</b> <b>{price:,.0f} so\'m</b>\n'
-            f'📊 <b>Status:</b> <code>{st}</code>\n'
+            f'📊 <b>Holati:</b> <b>{st}</b>\n'
             f'👤 <b>Qabul qiluvchi:</b> <code>{link}</code>\n'
             f'📅 <b>Sana:</b> {created}'
         )
@@ -1086,7 +1106,7 @@ async def send_order_card(event: types.Message | types.CallbackQuery, item_or_id
             f'📞 <b>Raqam:</b> <code>{number_str}</code>\n'
             f'<tg-emoji emoji-id="5456432998092133477">🔑</tg-emoji> <b>SMS Kod:</b> <code>{sms_code}</code>\n'
             f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narxi:</b> <b>{price:,.0f} so\'m</b>\n'
-            f'📊 <b>Status:</b> <code>{st}</code>\n'
+            f'📊 <b>Holati:</b> <b>{st}</b>\n'
             f'📅 <b>Sana:</b> {created}'
         )
     else: # SMM
@@ -1100,7 +1120,7 @@ async def send_order_card(event: types.Message | types.CallbackQuery, item_or_id
             f'📌 <b>Xizmat:</b> <b>{title}</b>\n'
             f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdor:</b> <b>{qty:,} ta</b>\n'
             f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narxi:</b> <b>{price:,.0f} so\'m</b>\n'
-            f'📊 <b>Status:</b> <code>{st}</code>\n'
+            f'📊 <b>Holati:</b> <b>{st}</b>\n'
             f'<tg-emoji emoji-id="5201989772448381592">🔗</tg-emoji> <b>Havola:</b> {link}\n'
             f'📅 <b>Sana:</b> {created}'
         )
@@ -1217,16 +1237,16 @@ async def cb_user_orders_list(callback: types.CallbackQuery):
     for o in orders:
         itype = o.get("type", "smm")
         oid = o["id"]
-        st = o.get("status", "Pending")
+        st = format_admin_order_status(o.get("status", "Pending"), itype)
         price = float(o.get("price", 0.0) or 0.0)
 
         if itype == "stars":
             qty = o.get("quantity", 0)
-            btn_text = f"#{oid} • {qty} Stars ({st})"
+            btn_text = f"#{oid} • {qty:,} Stars ({st})"
             emoji_id = "5897792062291449826"
         elif itype == "number":
             num_str = o.get("number") or "Noma'lum"
-            btn_text = f"#{oid} • {num_str} ({st})"
+            btn_text = f"{num_str} ({st})"
             emoji_id = "5859232223865081255"
         else:
             title = (o.get("title") or "SMM Xizmat")[:15]
