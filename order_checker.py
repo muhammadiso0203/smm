@@ -61,14 +61,14 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 if not username:
                     username = user_data.get("username") or ""
 
-        # Foydalanuvchi havolasi (ID raqamsiz, faqat profil linki)
-        display_name = html.escape(str(user_name or "Foydalanuvchi"))
+        # Foydalanuvchi ko'rinishi: username bo'lsa @username, bo'lmasa uning ID raqami
         if username:
-            user_link = f'<a href="https://t.me/{username}">{display_name}</a>'
+            clean_uname = str(username).lstrip("@")
+            user_display = f"@{clean_uname}"
         elif user_id:
-            user_link = f'<a href="tg://user?id={user_id}">{display_name}</a>'
+            user_display = f"<code>{user_id}</code>"
         else:
-            user_link = "Foydalanuvchi"
+            user_display = "Foydalanuvchi"
 
         time_now = datetime.now().strftime("%d.%m.%Y %H:%M")
         order_id = details.get("order_id", "—")
@@ -82,7 +82,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>YANGI BUYURTMA — SMM XIZMATI</b>\n'
                 f'━━━━━━━━━━━━━━━━━━━━\n'
                 f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Buyurtmachi:</b> {user_link}\n'
+                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Buyurtmachi:</b> {user_display}\n'
                 f'<tg-emoji emoji-id="5456432998092133477">🚀</tg-emoji> <b>Xizmat:</b> <b>{service_title}</b>\n'
                 f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdori:</b> <b>{qty:,} ta</b>\n'
                 f'<tg-emoji emoji-id="5201989772448381592">🔗</tg-emoji> <b>Havola:</b> <code>{link}</code>\n'
@@ -100,7 +100,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>YANGI BUYURTMA — TELEGRAM STARS</b>\n'
                 f'━━━━━━━━━━━━━━━━━━━━\n'
                 f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Buyurtmachi:</b> {user_link}\n'
+                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Buyurtmachi:</b> {user_display}\n'
                 f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Miqdori:</b> <b>{stars_amount:,} Stars</b>\n'
                 f'<tg-emoji emoji-id="5201989772448381592">🎯</tg-emoji> <b>Qabul qiluvchi:</b> <code>{target_user}</code>\n'
                 f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov summasi:</b> <b>{price:,.0f} so\'m</b>\n'
@@ -118,7 +118,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 f'<tg-emoji emoji-id="5444965061749644170">📱</tg-emoji> <b>YANGI BUYURTMA — VIRTUAL RAQAM</b>\n'
                 f'━━━━━━━━━━━━━━━━━━━━\n'
                 f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Buyurtmachi:</b> {user_link}\n'
+                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Buyurtmachi:</b> {user_display}\n'
                 f'<tg-emoji emoji-id="5444965061749644170">📱</tg-emoji> <b>Raqam:</b> <code>{number_str}</code>\n'
                 f'🌍 <b>Davlat:</b> {flag} <b>{country_name}</b>\n'
                 f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov summasi:</b> <b>{price:,.0f} so\'m</b>\n'
@@ -135,7 +135,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 f'<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> <b>BUYURTMA MUVAFFAQIYATLI BAJARILDI</b>\n'
                 f'━━━━━━━━━━━━━━━━━━━━\n'
                 f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Foydalanuvchi:</b> {user_link}\n'
+                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Foydalanuvchi:</b> {user_display}\n'
                 f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Xizmat:</b> <b>{service_title}</b>\n'
                 f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdori:</b> <b>{qty:,} ta</b>\n'
                 f'<tg-emoji emoji-id="6026257381678124710">⚡️</tg-emoji> <b>Holat:</b> <b>Bajarildi (Completed)</b>\n'
@@ -149,7 +149,7 @@ async def send_order_to_channel(bot: Bot, order_type: str, details: dict):
                 f'<tg-emoji emoji-id="6028346797368283073">❌</tg-emoji> <b>BUYURTMA BEKOR QILINDI & QAYTARILDI</b>\n'
                 f'━━━━━━━━━━━━━━━━━━━━\n'
                 f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{order_id}</code>\n'
-                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Foydalanuvchi:</b> {user_link}\n'
+                f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Foydalanuvchi:</b> {user_display}\n'
                 f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Xizmat:</b> <b>{service_title}</b>\n'
                 f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Qaytarilgan summa:</b> <b>{price:,.0f} so\'m</b>\n'
                 f'<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>Holat:</b> <i>Server tomonidan bekor qilindi (Mablag\' qaytarildi)</i>\n'
