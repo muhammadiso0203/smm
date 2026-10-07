@@ -1424,20 +1424,17 @@ async def process_deposit_amount(message: types.Message, state: FSMContext):
     adm_builder.row(
         InlineKeyboardButton(
             text=f"✅ #{dep_id} ni tasdiqlash ({exact_amt:,.0f} so'm)",
-            callback_data=f"adm:confdep:{dep_id}",
-            icon_custom_emoji_id="6011046912078787676"
+            callback_data=f"adm:confdep:{dep_id}"
         )
     )
     adm_builder.row(
         InlineKeyboardButton(
             text="👤 Foydalanuvchi",
-            callback_data=f"adm:uview:{message.from_user.id}",
-            icon_custom_emoji_id="6032609071373226027"
+            callback_data=f"adm:uview:{message.from_user.id}"
         ),
         InlineKeyboardButton(
             text="💳 Barcha kutilayotganlar",
-            callback_data="adm:pending_deps",
-            icon_custom_emoji_id="5262838597060422237"
+            callback_data="adm:pending_deps"
         )
     )
 

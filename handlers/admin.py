@@ -4,6 +4,7 @@ Statistika, foydalanuvchilar, buyurtmalar nazorati, depozitlar, balans boshqaruv
 API holati va ommaviy xabarlar (Broadcast) moduli.
 """
 import asyncio
+import html
 import logging
 from aiogram import types, Router, F, Bot
 from aiogram.filters import Command
@@ -11,6 +12,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.exceptions import TelegramBadRequest
+
+logger = logging.getLogger(__name__)
 
 from config import ADMINS
 from database import (
@@ -444,24 +448,21 @@ def admin_order_card_kb(item_type: str, item_id: int, user_id: int) -> InlineKey
 def admin_deposits_kb(pending_count: int = 0) -> InlineKeyboardMarkup:
     """Depozitlar bo'limi menyusi"""
     builder = InlineKeyboardBuilder()
-    p_text = f"Kutilayotgan to'lovlar ({pending_count})" if pending_count > 0 else "Kutilayotgan to'lovlar"
+    p_text = f"⏳ Kutilayotgan to'lovlar ({pending_count})" if pending_count > 0 else "⏳ Kutilayotgan to'lovlar"
     builder.row(
         InlineKeyboardButton(
             text=p_text, 
-            callback_data="adm:pending_deps",
-            icon_custom_emoji_id="5262838597060422237"
+            callback_data="adm:pending_deps"
         ),
         InlineKeyboardButton(
-            text="So'nggi to'lovlar tarixi", 
-            callback_data="adm:recent_deps",
-            icon_custom_emoji_id="5895288113537748673"
+            text="📋 To'lovlar tarixi", 
+            callback_data="adm:recent_deps"
         ),
     )
     builder.row(
         InlineKeyboardButton(
-            text="Asosiy Panel", 
-            callback_data="adm:main",
-            icon_custom_emoji_id="5416113713428057601"
+            text="🏠 Asosiy Panel", 
+            callback_data="adm:main"
         ),
     )
     return builder.as_markup()
@@ -1318,7 +1319,8 @@ async def cb_deposits_menu(callback: types.CallbackQuery):
             await callback.answer("✅ Yangilandi")
         else:
             await callback.answer()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error in cb_deposits_menu: {e}")
         await callback.answer()
 
 
@@ -1336,31 +1338,34 @@ async def cb_pending_deposits(callback: types.CallbackQuery):
     if not deps:
         try:
             await callback.message.edit_text(
-                '<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> <b>Hozirda kutilayotgan depozitlar yo\'q.</b>', 
+                '✅ <b>Hozirda kutilayotgan depozitlar yo\'q.</b>', 
                 reply_markup=admin_back_kb("deposits"),
                 parse_mode="HTML"
             )
             await callback.answer()
         except TelegramBadRequest:
             await callback.answer("Kutilayotgan to'lovlar yo'q")
+        except Exception as e:
+            logger.error(f"Error in empty cb_pending_deposits: {e}")
+            await callback.answer("Kutilayotgan to'lovlar yo'q")
         return
 
     builder = InlineKeyboardBuilder()
     text_lines = [
-        f'<tg-emoji emoji-id="6044796776462930061">⏳</tg-emoji> <b>Kutilayotgan to\'lovlar ({page}/{total_pages} - Jami: {total_count} ta):</b>\n'
+        f'⏳ <b>Kutilayotgan to\'lovlar ({page}/{total_pages} - Jami: {total_count} ta):</b>\n'
     ]
     for d in deps:
         did = d["id"]
         uid = d["user_id"]
         exact = d["exact_amount"]
         amount = d["amount"]
-        uname = f"@{d['username']}" if d.get("username") else (d.get("full_name") or f"User {uid}")[:14]
-        text_lines.append(f"• <b>#{did}</b> | {uname} | <b>{exact:,.0f} so'm</b> (Asl: {amount:,.0f})")
+        raw_uname = f"@{d['username']}" if d.get("username") else (d.get("full_name") or f"User {uid}")[:14]
+        escaped_uname = html.escape(raw_uname)
+        text_lines.append(f"• <b>#{did}</b> | {escaped_uname} | <b>{exact:,.0f} so'm</b> (Asl: {amount:,.0f})")
         builder.row(
             InlineKeyboardButton(
-                text=f"#{did} • {exact:,.0f} so'm ({uname})", 
-                callback_data=f"adm:depview:{did}",
-                icon_custom_emoji_id="6025976946083500432"
+                text=f"⏳ #{did} • {exact:,.0f} so'm ({raw_uname})", 
+                callback_data=f"adm:depview:{did}"
             )
         )
 
@@ -1368,15 +1373,15 @@ async def cb_pending_deposits(callback: types.CallbackQuery):
     if total_pages > 1:
         nav_buttons = []
         if page > 1:
-            nav_buttons.append(InlineKeyboardButton(text="Oldingi", callback_data=f"adm:pending_deps:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
-        nav_buttons.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop", icon_custom_emoji_id="6323234179555263965"))
+            nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"adm:pending_deps:{page - 1}"))
+        nav_buttons.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
         if page < total_pages:
-            nav_buttons.append(InlineKeyboardButton(text="Keyingi", callback_data=f"adm:pending_deps:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"adm:pending_deps:{page + 1}"))
         builder.row(*nav_buttons)
 
     builder.row(
-        InlineKeyboardButton(text="Yangilash", callback_data=f"adm:pending_deps:{page}", icon_custom_emoji_id="5895288113537748673"),
-        InlineKeyboardButton(text="Orqaga", callback_data="adm:deposits", icon_custom_emoji_id="5307502033103915040")
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"adm:pending_deps:{page}"),
+        InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm:deposits")
     )
     
     try:
@@ -1386,9 +1391,11 @@ async def cb_pending_deposits(callback: types.CallbackQuery):
         if "message is not modified" in str(e).lower():
             await callback.answer("✅ Yangilandi")
         else:
-            await callback.answer()
-    except Exception:
-        await callback.answer()
+            logger.error(f"TelegramBadRequest in cb_pending_deposits: {e}")
+            await callback.answer("Xatolik yuz berdi")
+    except Exception as e:
+        logger.error(f"Exception in cb_pending_deposits: {e}")
+        await callback.answer("Xatolik yuz berdi")
 
 
 @router.callback_query(F.data.startswith("adm:depview:"), F.from_user.func(lambda u: u.id in ADMINS))
@@ -1405,19 +1412,19 @@ async def cb_deposit_view(callback: types.CallbackQuery):
     st = dep.get("status", "pending")
     created = dep.get("created_at", "—")
     expires = dep.get("expires_at", "—")
-    uname = f"@{dep['username']}" if dep.get("username") else "—"
+    uname = html.escape(f"@{dep['username']}" if dep.get("username") else "—")
     fname = html.escape(dep.get("full_name") or "Foydalanuvchi")
 
     st_display = "⏳ Kutilmoqda (Pending)" if st == "pending" else ("✅ To'langan (Completed)" if st == "completed" else "❌ Bekor qilingan (Cancelled)")
 
     text = (
-        f'<tg-emoji emoji-id="6025976946083500432">💳</tg-emoji> <b>Depozit Ma\'lumotlari</b>\n\n'
-        f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Depozit ID:</b> <code>#{did}</code>\n'
+        f'💳 <b>Depozit Ma\'lumotlari</b>\n\n'
+        f'🆔 <b>Depozit ID:</b> <code>#{did}</code>\n'
         f'👤 <b>Foydalanuvchi:</b> {fname}\n'
         f'🔗 <b>Username:</b> {uname}\n'
         f'🆔 <b>User ID:</b> <code>{uid}</code>\n'
         f'💰 <b>Asl summa:</b> <b>{amount:,.0f} so\'m</b>\n'
-        f'<tg-emoji emoji-id="5415758949129404605">💵</tg-emoji> <b>To\'lanishi kerak bo\'lgan summa:</b> <b>{exact:,.0f} so\'m</b>\n'
+        f'💵 <b>To\'lanishi kerak bo\'lgan summa:</b> <b>{exact:,.0f} so\'m</b>\n'
         f'📊 <b>Holati:</b> <b>{st_display}</b>\n'
         f'📅 <b>Yaratilgan:</b> <code>{created}</code>\n'
         f'⏳ <b>Muddati:</b> <code>{expires}</code>'
@@ -1428,25 +1435,21 @@ async def cb_deposit_view(callback: types.CallbackQuery):
         builder.row(
             InlineKeyboardButton(
                 text=f"✅ Tasdiqlash ({exact:,.0f} so'm)",
-                callback_data=f"adm:confdep:{did}",
-                icon_custom_emoji_id="6011046912078787676"
+                callback_data=f"adm:confdep:{did}"
             ),
             InlineKeyboardButton(
                 text="❌ Bekor qilish",
-                callback_data=f"adm:canceldep:{did}",
-                icon_custom_emoji_id="6040291696079575101"
+                callback_data=f"adm:canceldep:{did}"
             )
         )
     builder.row(
         InlineKeyboardButton(
             text="👤 Foydalanuvchi",
-            callback_data=f"adm:uview:{uid}",
-            icon_custom_emoji_id="6032609071373226027"
+            callback_data=f"adm:uview:{uid}"
         ),
         InlineKeyboardButton(
             text="🔙 Kutilayotganlar",
-            callback_data="adm:pending_deps",
-            icon_custom_emoji_id="5307502033103915040"
+            callback_data="adm:pending_deps"
         )
     )
 
@@ -1457,8 +1460,10 @@ async def cb_deposit_view(callback: types.CallbackQuery):
         if "message is not modified" in str(e).lower():
             await callback.answer("✅ Yangilandi")
         else:
+            logger.error(f"TelegramBadRequest in cb_deposit_view: {e}")
             await callback.answer()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Exception in cb_deposit_view: {e}")
         await callback.answer()
 
 
@@ -1486,11 +1491,12 @@ async def cb_recent_deposits(callback: types.CallbackQuery):
         amount = d["amount"]
         exact = d["exact_amount"]
         st = d.get("status", "pending")
-        uname = f"@{d['username']}" if d.get("username") else (d.get("full_name") or f"User {uid}")[:14]
+        raw_uname = f"@{d['username']}" if d.get("username") else (d.get("full_name") or f"User {uid}")[:14]
+        escaped_uname = html.escape(raw_uname)
         icon = "✅" if st == "completed" else ("⏳" if st == "pending" else "❌")
-        text_lines.append(f"{icon} <b>#{did}</b> | {uname} | <b>{amount:,.0f} so'm</b> ({st})")
+        text_lines.append(f"{icon} <b>#{did}</b> | {escaped_uname} | <b>{amount:,.0f} so'm</b> ({st})")
         builder.row(InlineKeyboardButton(
-            text=f"#{did} • {amount:,.0f} so'm ({uname})",
+            text=f"#{did} • {amount:,.0f} so'm ({raw_uname})",
             callback_data=f"adm:depview:{did}"
         ))
 
@@ -1498,18 +1504,28 @@ async def cb_recent_deposits(callback: types.CallbackQuery):
     if total_pages > 1:
         nav_buttons = []
         if page > 1:
-            nav_buttons.append(InlineKeyboardButton(text="Oldingi", callback_data=f"adm:recent_deps:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
-        nav_buttons.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop", icon_custom_emoji_id="6323234179555263965"))
+            nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"adm:recent_deps:{page - 1}"))
+        nav_buttons.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
         if page < total_pages:
-            nav_buttons.append(InlineKeyboardButton(text="Keyingi", callback_data=f"adm:recent_deps:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"adm:recent_deps:{page + 1}"))
         builder.row(*nav_buttons)
 
     builder.row(
-        InlineKeyboardButton(text="Yangilash", callback_data=f"adm:recent_deps:{page}", icon_custom_emoji_id="5895288113537748673"),
-        InlineKeyboardButton(text="Orqaga", callback_data="adm:deposits", icon_custom_emoji_id="5307502033103915040")
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"adm:recent_deps:{page}"),
+        InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm:deposits")
     )
-    await callback.message.edit_text("\n".join(text_lines), reply_markup=builder.as_markup(), parse_mode="HTML")
-    await callback.answer()
+    try:
+        await callback.message.edit_text("\n".join(text_lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+        await callback.answer()
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            await callback.answer("✅ Yangilandi")
+        else:
+            logger.error(f"TelegramBadRequest in cb_recent_deposits: {e}")
+            await callback.answer()
+    except Exception as e:
+        logger.error(f"Error in cb_recent_deposits: {e}")
+        await callback.answer()
 
 
 @router.callback_query(F.data.startswith("adm:confdep:"), F.from_user.func(lambda u: u.id in ADMINS))
