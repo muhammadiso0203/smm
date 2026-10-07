@@ -1,59 +1,124 @@
 """
 🤖 SMM Bot — Userbot Sessiyasini Faollashtirish Skripti
-Bu skript orqali Telegram akkauntingizga ulanib, smm_userbot_session.session faylini yaratasiz.
 """
 import asyncio
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError
+from telethon.errors import (
+    SessionPasswordNeededError, 
+    FloodWaitError, 
+    PhoneNumberInvalidError, 
+    PhoneCodeInvalidError, 
+    PhoneCodeExpiredError
+)
+from telethon.tl.types.auth import (
+    SentCodeTypeApp, 
+    SentCodeTypeSms, 
+    SentCodeTypeCall, 
+    SentCodeTypeFlashCall, 
+    SentCodeTypeMissedCall, 
+    SentCodeTypeEmailCode
+)
 from config import TELEGRAM_API_ID, TELEGRAM_API_HASH
 
 
 async def main():
-    print("\n" + "=" * 55)
+    print("\n" + "=" * 60)
     print("📲 TELEGRAM USERBOTNI FAOLLASHTIRISH")
-    print("=" * 55)
+    print("=" * 60)
 
-    client = TelegramClient("smm_userbot_session", TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    client = TelegramClient(
+        "smm_userbot_session", 
+        TELEGRAM_API_ID, 
+        TELEGRAM_API_HASH,
+        device_model="Desktop PC",
+        system_version="Linux x86_64",
+        app_version="4.16.8",
+        lang_code="uz"
+    )
     await client.connect()
 
     if await client.is_user_authorized():
         me = await client.get_me()
-        print(f"✅ Akkaunt allaqachon ulangan: {me.first_name} (@{me.username or 'username_yoq'})")
-        print("Sessiya fayli mavjud va faol!")
+        print(f"\n✅ Akkaunt allaqachon ulangan: {me.first_name} (@{me.username or 'yoq'})")
+        print("Sessiya fayli mavjud va tayyor: smm_userbot_session.session")
         await client.disconnect()
         return
 
-    phone = input("\n📞 Telefon raqamingizni kiriting (+998...): ").strip().replace(" ", "")
+    phone = input("\n📞 Telefon raqamingizni kiriting (+99890... shaklida): ").strip().replace(" ", "")
+    if not phone.startswith("+"):
+        phone = "+" + phone
+
+    print(f"\n⏳ Telegram serveriga kod so'rovi yuborilmoqda ({phone})...")
     
-    print("⏳ Kod yuborilmoqda...")
-    sent = await client.send_code_request(phone)
+    try:
+        sent = await client.send_code_request(phone)
+    except FloodWaitError as e:
+        print(f"\n⚠️ Telegram vaqtinchalik cheklov qo'ydi. Iltimos {e.seconds} soniyadan keyin qayta urinib ko'ring.")
+        await client.disconnect()
+        return
+    except PhoneNumberInvalidError:
+        print("\n❌ Noto'g'ri telefon raqami kiritildi. Iltimos +998... formatida to'g'ri kiriting.")
+        await client.disconnect()
+        return
+    except Exception as e:
+        print(f"\n❌ Kod so'rashda xatolik: {e}")
+        await client.disconnect()
+        return
 
-    print("\n" + "─" * 55)
-    print("👉 DIQQAT: Kod telefoningizdagi TELEGRAM ILOVASIGA yuborildi!")
-    print("   (Telegram ichidagi 'Telegram' degan rasmiy xabarni oching)")
-    print("─" * 55)
+    # Kod qayerga ketganini aniqlaymiz
+    code_type_name = type(sent.type).__name__
+    print("\n" + "─" * 60)
+    if isinstance(sent.type, SentCodeTypeApp):
+        print("📨 KOD TELEGRAM ILOVASIGA YUBORILDI!")
+        print("👉 Telefoningizdagi yoki kompyuterdagi Telegram ilovasini oching.")
+        print("👉 'Telegram' (yoki 777000) nomli rasmiy chatga kelgan 5 xonali kodni oling.")
+    elif isinstance(sent.type, SentCodeTypeSms):
+        print("📱 KOD TELEFONINGIZGA ODDIY SMS ORQALI YUBORILDI!")
+        print("👉 Telefoningizning SMS qutisini tekshiring.")
+    elif isinstance(sent.type, SentCodeTypeEmailCode):
+        print("📧 KOD EMAIL POCHANGIZGA YUBORILDI!")
+        print("👉 Telegram akkauntingizga ulangan elektron pochtangizni tekshiring.")
+    elif isinstance(sent.type, (SentCodeTypeCall, SentCodeTypeFlashCall, SentCodeTypeMissedCall)):
+        print("📞 TELEFONINGIZGA QO'NG'IROQ BO'LMOQDA!")
+        print("👉 Qo'ng'iroq orqali aytilgan kodni tinglang yoki oxirgi raqamlarini kiriting.")
+    else:
+        print(f"ℹ️ Kod yuborildi (Turi: {code_type_name}). Telegram ilovangizni yoki SMS ni tekshiring.")
+    print("─" * 60)
 
-    code = input("\n🔑 Telegram ilovangizga kelgan kodni kiriting: ").strip().replace(" ", "")
+    code = input("\n🔑 Kelgan kodni kiriting: ").strip().replace(" ", "").replace("-", "")
 
     try:
         await client.sign_in(phone=phone, code=code)
     except SessionPasswordNeededError:
-        print("\n🔐 Ushbu akkauntda 2FA (Ikki bosqichli parol) o'rnatilgan.")
+        print("\n🔐 Ushbu akkauntda 2FA (Ikki bosqichli parol) mavjud.")
         password = input("2FA Parolingizni kiriting: ").strip()
-        await client.sign_in(password=password)
+        try:
+            await client.sign_in(password=password)
+        except Exception as p_err:
+            print(f"❌ Parol noto'g'ri: {p_err}")
+            await client.disconnect()
+            return
+    except PhoneCodeInvalidError:
+        print("\n❌ Kiritilgan kod noto'g'ri! Iltimos, qaytadan urinib ko'ring.")
+        await client.disconnect()
+        return
+    except PhoneCodeExpiredError:
+        print("\n❌ Kodning muddati o'tgan. Iltimos, qaytadan urinib ko'ring.")
+        await client.disconnect()
+        return
     except Exception as e:
-        print(f"\n❌ Kirishda xatolik yuz berdi: {e}")
+        print(f"\n❌ Kirishda xatolik: {e}")
         await client.disconnect()
         return
 
     me = await client.get_me()
-    print("\n" + "=" * 55)
+    print("\n" + "=" * 60)
     print(f"🎉 TABRIKLAYMIZ! Akkaunt muvaffaqiyatli ulandi:")
     print(f"👤 Ism: {me.first_name}")
     print(f"🔗 Username: @{me.username or 'yoq'}")
     print(f"🆔 Telegram ID: {me.id}")
-    print("💾 Sessiya fayli yaratildi: smm_userbot_session.session")
-    print("=" * 55 + "\n")
+    print("💾 Sessiya fayli muvaffaqiyatli yaratildi: smm_userbot_session.session")
+    print("=" * 60 + "\n")
 
     await client.disconnect()
 
