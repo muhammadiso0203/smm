@@ -612,6 +612,96 @@ def get_user_virtual_numbers(user_id: int, limit: int = 5):
     return [dict(r) for r in rows]
 
 
+def get_user_orders_count(user_id: int) -> dict:
+    """Foydalanuvchining har bir turdagi buyurtmalari sonini olish"""
+    conn = get_connection()
+    smm_count = conn.execute(
+        "SELECT COUNT(*) as c FROM orders WHERE user_id = ? AND service_id != 9999", 
+        (user_id,)
+    ).fetchone()["c"]
+    
+    stars_count = conn.execute(
+        "SELECT COUNT(*) as c FROM orders WHERE user_id = ? AND service_id = 9999", 
+        (user_id,)
+    ).fetchone()["c"]
+    
+    number_count = conn.execute(
+        "SELECT COUNT(*) as c FROM virtual_numbers WHERE user_id = ?", 
+        (user_id,)
+    ).fetchone()["c"]
+    
+    conn.close()
+    return {
+        "smm": smm_count,
+        "stars": stars_count,
+        "number": number_count,
+        "total": smm_count + stars_count + number_count
+    }
+
+
+def get_user_unified_orders(user_id: int, category: str = "all", limit: int = 5, offset: int = 0) -> list:
+    """
+    Barcha turdagi buyurtmalarni (SMM, Stars, Virtual raqamlar) birlashtirib, sana bo'yicha saralab qaytarish
+    category: 'all', 'smm', 'stars', 'number'
+    """
+    conn = get_connection()
+    results = []
+    
+    if category in ["all", "smm", "stars"]:
+        query = "SELECT * FROM orders WHERE user_id = ?"
+        params = [user_id]
+        if category == "smm":
+            query += " AND service_id != 9999"
+        elif category == "stars":
+            query += " AND service_id = 9999"
+        
+        rows = conn.execute(query, params).fetchall()
+        for r in rows:
+            d = dict(r)
+            is_stars = (d.get("service_id") == 9999)
+            results.append({
+                "type": "stars" if is_stars else "smm",
+                "id": d["order_id"],
+                "db_id": d["id"],
+                "user_id": d["user_id"],
+                "service_id": d.get("service_id"),
+                "title": d.get("service_title", "Xizmat"),
+                "quantity": d.get("quantity", 0),
+                "price": float(d.get("price", 0.0) or 0.0),
+                "status": d.get("status", "Pending"),
+                "link": d.get("link", ""),
+                "created_at": d.get("created_at", "")
+            })
+
+    if category in ["all", "number"]:
+        v_rows = conn.execute(
+            "SELECT * FROM virtual_numbers WHERE user_id = ?", 
+            (user_id,)
+        ).fetchall()
+        for r in v_rows:
+            d = dict(r)
+            results.append({
+                "type": "number",
+                "id": d["id"],
+                "db_id": d["id"],
+                "user_id": d["user_id"],
+                "server": d.get("server", 1),
+                "country": d.get("country", ""),
+                "number": d.get("number", ""),
+                "hash_code": d.get("hash_code", ""),
+                "sms_code": d.get("sms_code", ""),
+                "price": float(d.get("price", 0.0) or 0.0),
+                "status": d.get("status", "waiting"),
+                "created_at": d.get("created_at", "")
+            })
+    
+    conn.close()
+    
+    # Sana bo'yicha teskari saralash (eng yangi birinchi)
+    results.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    return results[offset:offset + limit]
+
+
 # ──────────────────────────────────────────
 #  Majburiy Obuna Kanallari funksiyalari
 # ──────────────────────────────────────────

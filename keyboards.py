@@ -1,6 +1,7 @@
 from typing import Any
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from smm_api import smm_api
 
 def my_inline_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -271,53 +272,64 @@ def tg_sub_cheap_menu() -> InlineKeyboardMarkup:
     """Telegram Arzon-sekin obunachilar tariflari menyusi"""
     builder = InlineKeyboardBuilder()
 
+    p_2123 = smm_api.get_cached_rate(2123, 594)
+    p_2124 = smm_api.get_cached_rate(2124, 1783)
+    p_2125 = smm_api.get_cached_rate(2125, 2378)
+    p_2126 = smm_api.get_cached_rate(2126, 3574)
+    p_2127 = smm_api.get_cached_rate(2127, 4747)
+    p_2128 = smm_api.get_cached_rate(2128, 5651)
+    p_2129 = smm_api.get_cached_rate(2129, 8011)
+    p_2130 = smm_api.get_cached_rate(2130, 11274)
+    p_2131 = smm_api.get_cached_rate(2131, 16361)
+    p_837 = smm_api.get_cached_rate(837, 18509)
+
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 1-kun kafolatli - 500 so'm", 
+        text=f"TG Obunachi 1-kun kafolatli - {p_2123:,} so'm".replace(",", " "), 
         callback_data="buy_tg_1d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 7-kun kafolatli - 1 495 so'm", 
+        text=f"TG Obunachi 7-kun kafolatli - {p_2124:,} so'm".replace(",", " "), 
         callback_data="buy_tg_7d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 14-kun kafolatli - 1 995 so'm", 
+        text=f"TG Obunachi 14-kun kafolatli - {p_2125:,} so'm".replace(",", " "), 
         callback_data="buy_tg_14d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 30-kun kafolatli - 2 985 so'm", 
+        text=f"TG Obunachi 30-kun kafolatli - {p_2126:,} so'm".replace(",", " "), 
         callback_data="buy_tg_30d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 60-kun kafolatli - 3 975 so'm", 
+        text=f"TG Obunachi 60-kun kafolatli - {p_2127:,} so'm".replace(",", " "), 
         callback_data="buy_tg_60d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 90-kun kafolatli - 4 755 so'm", 
+        text=f"TG Obunachi 90-kun kafolatli - {p_2128:,} so'm".replace(",", " "), 
         callback_data="buy_tg_90d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 180-kun kafolatli - 6 690 so'm", 
+        text=f"TG Obunachi 180-kun kafolatli - {p_2129:,} so'm".replace(",", " "), 
         callback_data="buy_tg_180d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi 365-kun kafolatli - 9 410 so'm", 
+        text=f"TG Obunachi 365-kun kafolatli - {p_2130:,} so'm".replace(",", " "), 
         callback_data="buy_tg_365d",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG Obunachi butun umr kafolatli - 13 650 so'm", 
+        text=f"TG Obunachi butun umr kafolatli - {p_2131:,} so'm".replace(",", " "), 
         callback_data="buy_tg_lifetime",
         icon_custom_emoji_id="5438278356015528516"
     ))
     builder.row(InlineKeyboardButton(
-        text="Rus Obunachi 30 kunlik kafolatli - 15 450 so'm", 
+        text=f"Rus Obunachi 30 kunlik kafolatli - {p_837:,} so'm".replace(",", " "), 
         callback_data="buy_tg_rus30d",
         icon_custom_emoji_id="5262866437038421122"
     ))
@@ -396,14 +408,16 @@ def telegram_views_menu() -> InlineKeyboardMarkup:
 
 def tg_views_prasmotr_menu() -> InlineKeyboardMarkup:
     """Telegram Bir martalik ko'rishlar (APIdan)"""
+    p_740 = smm_api.get_cached_rate(740, 301)
+    p_750 = smm_api.get_cached_rate(750, 2087)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
-        text="Bir post uchun [tezkor] - 251 so'm",
+        text=f"Bir post uchun [tezkor] - {p_740:,} so'm".replace(",", " "),
         callback_data="buy_service_740",
         icon_custom_emoji_id="5325847485279652235"
     ))
     builder.row(InlineKeyboardButton(
-        text="TG ko'rishlar [API+] - 1 739 so'm",
+        text=f"TG ko'rishlar [API+] - {p_750:,} so'm".replace(",", " "),
         callback_data="buy_service_750",
         icon_custom_emoji_id="5325847485279652235"
     ))
@@ -417,24 +431,28 @@ def tg_views_prasmotr_menu() -> InlineKeyboardMarkup:
 
 def tg_views_auto_old_menu() -> InlineKeyboardMarkup:
     """Telegram Avto ko'rishlar eski post (APIdan)"""
+    p_63 = smm_api.get_cached_rate(63, 199)
+    p_64 = smm_api.get_cached_rate(64, 403)
+    p_65 = smm_api.get_cached_rate(65, 802)
+    p_73 = smm_api.get_cached_rate(73, 4012)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 5 post (Eski) - 166 so'm",
+        text=f"Avto ko'rishlar 5 post (Eski) - {p_63:,} so'm".replace(",", " "),
         callback_data="buy_service_63",
         icon_custom_emoji_id="5233246225146332642"
     ))
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 10 post (Eski) - 336 so'm",
+        text=f"Avto ko'rishlar 10 post (Eski) - {p_64:,} so'm".replace(",", " "),
         callback_data="buy_service_64",
         icon_custom_emoji_id="5233246225146332642"
     ))
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 20 post (Eski) - 668 so'm",
+        text=f"Avto ko'rishlar 20 post (Eski) - {p_65:,} so'm".replace(",", " "),
         callback_data="buy_service_65",
         icon_custom_emoji_id="5233246225146332642"
     ))
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 100 post (Eski) - 3 343 so'm",
+        text=f"Avto ko'rishlar 100 post (Eski) - {p_73:,} so'm".replace(",", " "),
         callback_data="buy_service_73",
         icon_custom_emoji_id="5233246225146332642"
     ))
@@ -448,24 +466,28 @@ def tg_views_auto_old_menu() -> InlineKeyboardMarkup:
 
 def tg_views_auto_new_menu() -> InlineKeyboardMarkup:
     """Telegram Avto ko'rishlar yangi post (APIdan)"""
+    p_714 = smm_api.get_cached_rate(714, 2609)
+    p_715 = smm_api.get_cached_rate(715, 5216)
+    p_719 = smm_api.get_cached_rate(719, 46369)
+    p_721 = smm_api.get_cached_rate(721, 339080)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 5 post (Yangi) - 2 174 so'm",
+        text=f"Avto ko'rishlar 5 post (Yangi) - {p_714:,} so'm".replace(",", " "),
         callback_data="buy_service_714",
         icon_custom_emoji_id="5210956306952758910"
     ))
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 10 post (Yangi) - 4 347 so'm",
+        text=f"Avto ko'rishlar 10 post (Yangi) - {p_715:,} so'm".replace(",", " "),
         callback_data="buy_service_715",
         icon_custom_emoji_id="5210956306952758910"
     ))
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 100 post (Yangi) - 38 641 so'm",
+        text=f"Avto ko'rishlar 100 post (Yangi) - {p_719:,} so'm".replace(",", " "),
         callback_data="buy_service_719",
         icon_custom_emoji_id="5210956306952758910"
     ))
     builder.row(InlineKeyboardButton(
-        text="Avto ko'rishlar 1000 post (Yangi) - 282 567 so'm",
+        text=f"Avto ko'rishlar 1000 post (Yangi) - {p_721:,} so'm".replace(",", " "),
         callback_data="buy_service_721",
         icon_custom_emoji_id="5210956306952758910"
     ))
@@ -475,6 +497,7 @@ def tg_views_auto_new_menu() -> InlineKeyboardMarkup:
         icon_custom_emoji_id="5416113713428057601"
     ))
     return builder.as_markup()
+
 
 
 def tg_premium_subs_menu() -> InlineKeyboardMarkup:
@@ -1386,6 +1409,78 @@ def subscription_required_kb(channels: list) -> InlineKeyboardMarkup:
         )
     )
     return builder.as_markup()
+
+
+def user_orders_keyboard(category: str, page: int, total_pages: int, counts: dict, waiting_numbers: list = None) -> InlineKeyboardMarkup:
+    """Foydalanuvchi buyurtmalar menyusi tugmalari"""
+    builder = InlineKeyboardBuilder()
+
+    # 1. Kategoriya filtrlari
+    btn_all = f"{'🔘' if category == 'all' else '▫️'} Barchasi ({counts.get('total', 0)})"
+    btn_smm = f"{'🔘' if category == 'smm' else '▫️'} 📦 SMM ({counts.get('smm', 0)})"
+    btn_num = f"{'🔘' if category == 'number' else '▫️'} 📱 Raqam ({counts.get('number', 0)})"
+    btn_stars = f"{'🔘' if category == 'stars' else '▫️'} ⭐ Stars ({counts.get('stars', 0)})"
+
+    builder.row(
+        InlineKeyboardButton(text=btn_all, callback_data="myord:all:1"),
+        InlineKeyboardButton(text=btn_smm, callback_data="myord:smm:1")
+    )
+    builder.row(
+        InlineKeyboardButton(text=btn_num, callback_data="myord:number:1"),
+        InlineKeyboardButton(text=btn_stars, callback_data="myord:stars:1")
+    )
+
+    # 2. Agar kutilayotgan virtual raqamlar bo'lsa, ularni to'g'ridan-to'g'ri tekshirish tugmasi
+    if waiting_numbers:
+        for num_item in waiting_numbers[:2]:
+            builder.row(InlineKeyboardButton(
+                text=f"📩 #{num_item['id']} ({num_item.get('number', '')}) SMS tekshirish",
+                callback_data=f"num_sms:{num_item['id']}",
+                icon_custom_emoji_id="5456432998092133477"
+            ))
+
+    # 3. Sahifalash (agar 1 dan ortiq sahifa bo'lsa)
+    if total_pages > 1:
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"myord:{category}:{page - 1}"))
+        nav_buttons.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
+        if page < total_pages:
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"myord:{category}:{page + 1}"))
+        builder.row(*nav_buttons)
+
+    # 4. Yangilash va Asosiy menyu
+    builder.row(
+        InlineKeyboardButton(
+            text="🔄 Yangilash", 
+            callback_data=f"myord:{category}:{page}",
+            icon_custom_emoji_id="5416113713428057601"
+        ),
+        InlineKeyboardButton(
+            text="« Asosiy menyu", 
+            callback_data="back_to_main",
+            icon_custom_emoji_id="5416113713428057601"
+        )
+    )
+
+    return builder.as_markup()
+
+
+def user_empty_orders_keyboard() -> InlineKeyboardMarkup:
+    """Buyurtmalar bo'lmaganda chiqadigan tugmalar"""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🛒 SMM Xizmatlari", callback_data="smm", icon_custom_emoji_id="6028346797368283073"),
+        InlineKeyboardButton(text="📱 Nomer Olish", callback_data="number", icon_custom_emoji_id="5444965061749644170")
+    )
+    builder.row(
+        InlineKeyboardButton(text="⭐ Stars Xizmati", callback_data="stars", icon_custom_emoji_id="5897792062291449826")
+    )
+    builder.row(
+        InlineKeyboardButton(text="« Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601")
+    )
+    return builder.as_markup()
+
 
 
 

@@ -14,6 +14,7 @@ from aiogram.types import Message
 from config import BOT_TOKEN, LOG_FILE
 from database import init_db
 from order_checker import check_orders_loop
+from smm_api import smm_api
 from middlewares import BanCheckMiddleware, SubscriptionMiddleware
 from handlers.admin import router as admin_router
 from handlers.user import router as user_router
@@ -82,6 +83,8 @@ async def main():
 
     # Fon xizmati: Buyurtmalar holatini avtomatik tekshiruvchi task
     asyncio.create_task(check_orders_loop(bot, interval_seconds=30))
+    # SMM API xizmatlarini keshga yuklash
+    asyncio.create_task(smm_api.get_services())
 
     # Polling boshlash
     await dp.start_polling(bot, skip_updates=True)

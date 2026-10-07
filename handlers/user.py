@@ -11,6 +11,7 @@ from database import (
     add_user, get_user_balance, add_user_balance, create_pending_deposit,
     add_order_record, update_order_status, get_user_orders, get_order_by_id,
     add_virtual_number, get_virtual_number_by_id, update_virtual_number_sms, get_user_virtual_numbers,
+    get_user_orders_count, get_user_unified_orders,
     get_star_price
 )
 from smm_api import smm_api
@@ -64,7 +65,9 @@ from keyboards import (
     active_number_keyboard,
     stars_menu,
     stars_confirm_keyboard,
-    subscription_required_kb
+    subscription_required_kb,
+    user_orders_keyboard,
+    user_empty_orders_keyboard
 )
 from middlewares import check_user_subscription
 
@@ -212,6 +215,7 @@ async def callback_tg_views(callback: types.CallbackQuery):
 @router.callback_query(F.data == "tg_views_prasmotr")
 async def callback_tg_views_prasmotr(callback: types.CallbackQuery):
     await callback.answer()
+    await smm_api.get_services()
     await callback.message.edit_text(
         "<b>[Telegram ko'rishlar (prasmotr)]</b> bo'limidan kerakli tarifni tanlang:",
         reply_markup=tg_views_prasmotr_menu(),
@@ -222,6 +226,7 @@ async def callback_tg_views_prasmotr(callback: types.CallbackQuery):
 @router.callback_query(F.data == "tg_views_auto_old")
 async def callback_tg_views_auto_old(callback: types.CallbackQuery):
     await callback.answer()
+    await smm_api.get_services()
     await callback.message.edit_text(
         "<b>[Telegram Avto ko'rishlar (eski post)]</b> bo'limidan kerakli tarifni tanlang:",
         reply_markup=tg_views_auto_old_menu(),
@@ -232,6 +237,7 @@ async def callback_tg_views_auto_old(callback: types.CallbackQuery):
 @router.callback_query(F.data == "tg_views_auto_new")
 async def callback_tg_views_auto_new(callback: types.CallbackQuery):
     await callback.answer()
+    await smm_api.get_services()
     await callback.message.edit_text(
         "<b>[Telegram avto ko'rishlar (yangi post)]</b> bo'limidan kerakli tarifni tanlang:",
         reply_markup=tg_views_auto_new_menu(),
@@ -242,6 +248,7 @@ async def callback_tg_views_auto_new(callback: types.CallbackQuery):
 @router.callback_query(F.data == "tg_sub_cheap")
 async def callback_tg_sub_cheap(callback: types.CallbackQuery):
     await callback.answer()
+    await smm_api.get_services()
     await callback.message.edit_text(
         "👇 <b>Kerakli tarifni tanlang:</b>",
         reply_markup=tg_sub_cheap_menu(),
@@ -488,10 +495,15 @@ async def callback_show_service_detail(callback: types.CallbackQuery):
     desc = desc.replace("<", "&lt;").replace(">", "&gt;")
     desc = desc.replace("⚠️", '<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji>')
 
+    try:
+        formatted_rate = f"{int(float(service['rate'])):,}".replace(",", " ")
+    except Exception:
+        formatted_rate = str(service["rate"])
+
     text = (
         f'<tg-emoji emoji-id="5373052667671093676">🛍️</tg-emoji> <b>{service["name"]}</b>\n\n'
         f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>ID:</b> <code>{service["service"]}</code>\n'
-        f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narx:</b> 1000 ta uchun - <b>{service["rate"]} so\'m</b>\n'
+        f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narx:</b> 1000 ta uchun - <b>{formatted_rate} so\'m</b>\n'
         f'<tg-emoji emoji-id="5447410659077661506">🌐</tg-emoji> <b>Min/Max:</b> {service["min"]} - {service["max"]}\n\n'
         f'<blockquote>{desc}</blockquote>\n\n'
         f'<tg-emoji emoji-id="5231102735817918643">👇</tg-emoji> <b>Buyurtma berish tugmasini bosing!</b>'
@@ -1393,49 +1405,193 @@ async def process_deposit_amount(message: types.Message, state: FSMContext):
 
 
 
+async def render_user_orders(user_id: int, category: str = "all", page: int = 1):
+    PAGE_SIZE = 5
+    counts = get_user_orders_count(user_id)
+
+    # Agar foydalanuvchida umuman birorta buyurtma bo'lmasa:
+    if counts["total"] == 0:
+        text = (
+            '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening Buyurtmalarim</b>\n\n'
+            '<i>Sizda hali birorta ham buyurtma mavjud emas.</i>\n\n'
+            'Xizmatlarimizdan birini tanlab yangi buyurtma berishingiz mumkin 👇'
+        )
+        return text, user_empty_orders_keyboard()
+
+    cat_total = counts.get(category, counts["total"]) if category != "all" else counts["total"]
+    total_pages = max(1, (cat_total + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * PAGE_SIZE
+
+    orders = get_user_unified_orders(user_id=user_id, category=category, limit=PAGE_SIZE, offset=offset)
+
+    category_names = {
+        "all": "Barchasi",
+        "smm": "SMM Xizmatlari",
+        "number": "Virtual Raqamlar",
+        "stars": "Telegram Stars"
+    }
+    cat_title = category_names.get(category, "Barchasi")
+
+    header = (
+        f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening Buyurtmalarim</b> ({cat_title})\n\n'
+        f'📊 <b>Jami:</b> <b>{counts["total"]} ta</b> (📦 SMM: <b>{counts["smm"]}</b> | 📱 Raqam: <b>{counts["number"]}</b> | ⭐ Stars: <b>{counts["stars"]}</b>)\n'
+        f'━━━━━━━━━━━━━━━━━━━━\n\n'
+    )
+
+    if not orders:
+        body = (
+            f'<i>Ushbu bo\'limda ({cat_title}) hozircha buyurtmalar yo\'q.</i>\n\n'
+            f'Pastdagi tugmalar orqali boshqa toifani tanlashingiz mumkin 👇'
+        )
+    else:
+        items_text = []
+        for item in orders:
+            itype = item.get("type")
+            oid = item.get("id")
+            created_at = item.get("created_at") or ""
+            price = float(item.get("price", 0.0) or 0.0)
+
+            if itype == "stars":
+                qty = item.get("quantity", 0)
+                target = item.get("link") or ""
+                st = (item.get("status") or "Completed").strip().lower()
+
+                if st in ["completed", "bajarildi", "yakunlandi", "success", "done"]:
+                    st_display = '<b>Yetkazildi</b> <tg-emoji emoji-id="5456432998092133477">✅</tg-emoji>'
+                elif st in ["canceled", "cancelled", "refunded", "bekor"]:
+                    st_display = '<b>Bekor qilingan</b> <tg-emoji emoji-id="6032903688949862892">❌</tg-emoji>'
+                else:
+                    st_display = '<b>Kutilmoqda</b> ⏳'
+
+                card = (
+                    f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars</b> <code>#{oid}</code>\n'
+                    f'🌟 <b>Miqdor:</b> <b>{qty:,} Stars</b>\n'
+                )
+                if target:
+                    card += f'👤 <b>Qabul qiluvchi:</b> <code>{target}</code>\n'
+                card += (
+                    f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov:</b> <b>{price:,.0f} so\'m</b>\n'
+                    f'🔎 <b>Holat:</b> {st_display}\n'
+                )
+                if created_at:
+                    card += f'📅 <b>Sana:</b> <i>{created_at}</i>'
+                items_text.append(card)
+
+            elif itype == "number":
+                num_id = item["id"]
+                number_str = item.get("number") or "Noma'lum"
+                country = item.get("country") or ""
+                flag, country_name = get_country_display(country)
+                sms_code = item.get("sms_code") or ""
+                server = item.get("server") or 1
+                st = (item.get("status") or "waiting").strip().lower()
+
+                if sms_code or st in ["received", "completed", "success"]:
+                    st_display = '<b>SMS qabul qilindi</b> <tg-emoji emoji-id="5456432998092133477">✅</tg-emoji>'
+                    sms_display = f'<code>{sms_code}</code>' if sms_code else "<i>Mavjud</i>"
+                elif st in ["canceled", "timeout", "refunded"]:
+                    st_display = '<b>Bekor qilingan</b> <tg-emoji emoji-id="6032903688949862892">❌</tg-emoji>'
+                    sms_display = '<i>Bekor qilingan</i>'
+                else:
+                    st_display = '<b>SMS kutilmoqda</b> ⏳'
+                    sms_display = '<i>Kutilmoqda...</i>'
+
+                card = (
+                    f'<tg-emoji emoji-id="5444965061749644170">📱</tg-emoji> <b>Virtual Raqam</b> <code>#{num_id}</code>\n'
+                    f'🌍 <b>Davlat:</b> {flag} <b>{country_name}</b> (Server {server})\n'
+                    f'📞 <b>Raqam:</b> <code>{number_str}</code>\n'
+                    f'<tg-emoji emoji-id="5456432998092133477">🔑</tg-emoji> <b>SMS Kod:</b> {sms_display}\n'
+                    f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narxi:</b> <b>{price:,.0f} so\'m</b>\n'
+                    f'🔎 <b>Holat:</b> {st_display}\n'
+                )
+                if created_at:
+                    card += f'📅 <b>Sana:</b> <i>{created_at}</i>'
+                items_text.append(card)
+
+            else:
+                title = item.get("title") or "SMM Xizmat"
+                qty = item.get("quantity", 0)
+                link = item.get("link") or ""
+                st = (item.get("status") or "Pending").strip().lower()
+
+                if st in ["completed", "bajarildi", "yakunlandi", "success", "done", "выполнено"]:
+                    st_display = '<b>Bajarilgan</b> <tg-emoji emoji-id="5456432998092133477">✅</tg-emoji>'
+                elif st in ["canceled", "cancelled", "bekor qilindi", "bekor", "refunded", "failed", "canceled/refunded"]:
+                    st_display = '<b>Bekor qilingan</b> <tg-emoji emoji-id="6032903688949862892">❌</tg-emoji>'
+                elif st in ["partial", "qisman", "partial/refunded"]:
+                    st_display = '<b>Qisman bajarilgan</b> <tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji>'
+                elif st in ["in progress", "processing", "jarayonda", "bajarilmoqda"]:
+                    st_display = '<b>Bajarilmoqda</b> <tg-emoji emoji-id="6538800872766034734">🚀</tg-emoji>'
+                else:
+                    st_display = '<b>Kutilmoqda</b> ⏳'
+
+                card = (
+                    f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>SMM Buyurtma</b> <code>#{oid}</code>\n'
+                    f'📌 <b>Xizmat:</b> {title}\n'
+                )
+                if link:
+                    card += f'🔗 <b>Havola:</b> <code>{link}</code>\n'
+                card += (
+                    f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdor:</b> <b>{qty:,} ta</b> | '
+                    f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>{price:,.0f} so\'m</b>\n'
+                    f'🔎 <b>Holat:</b> {st_display}\n'
+                )
+                if created_at:
+                    card += f'📅 <b>Sana:</b> <i>{created_at}</i>'
+                items_text.append(card)
+
+        body = "\n\n━━━━━━━━━━━━━━━━━━━━\n\n".join(items_text)
+
+    # Faol kutilayotgan virtual raqamlarni topamiz (tezkor SMS tekshirish tugmasi uchun)
+    waiting_numbers = [item for item in orders if item.get("type") == "number" and item.get("status") == "waiting"]
+
+    kb = user_orders_keyboard(
+        category=category, 
+        page=page, 
+        total_pages=total_pages, 
+        counts=counts, 
+        waiting_numbers=waiting_numbers
+    )
+    return header + body, kb
+
+
 @router.callback_query(F.data == "buyurtmalarim")
 async def callback_orders(callback: types.CallbackQuery):
     await callback.answer()
     user_id = callback.from_user.id
-    orders = get_user_orders(user_id, limit=5)
+    text, kb = await render_user_orders(user_id=user_id, category="all", page=1)
+    try:
+        await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text=text, reply_markup=kb, parse_mode="HTML")
 
-    if not orders:
-        await callback.message.answer(
-            '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Sizda hali buyurtmalar yo\'q.</b>\n\n'
-            'Xizmatlardan birini tanlab yangi buyurtma berishingiz mumkin!',
-            parse_mode="HTML"
-        )
-        return
 
-    text = '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening buyurtmalarim:</b>\n\n'
-    for ord_item in orders:
-        oid = ord_item["order_id"]
-        st = (ord_item.get("status") or "Pending").strip()
-        status_lower = st.lower()
+@router.callback_query(F.data.startswith("myord:"))
+async def callback_orders_filter(callback: types.CallbackQuery):
+    await callback.answer()
+    user_id = callback.from_user.id
+    parts = callback.data.split(":")
+    category = parts[1] if len(parts) > 1 else "all"
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+    
+    text, kb = await render_user_orders(user_id=user_id, category=category, page=page)
+    try:
+        await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text=text, reply_markup=kb, parse_mode="HTML")
 
-        if status_lower in ["completed", "bajarildi", "yakunlandi", "success", "done", "выполнено"]:
-            st_display = '<b>Bajarilgan</b><tg-emoji emoji-id="5456432998092133477">✅</tg-emoji>'
-        elif status_lower in ["canceled", "cancelled", "bekor qilindi", "bekor", "refunded", "failed", "canceled/refunded"]:
-            st_display = '<b>Bekor qilingan</b><tg-emoji emoji-id="6032903688949862892">❌</tg-emoji>'
-        elif status_lower in ["partial", "qisman", "partial/refunded"]:
-            st_display = '<b>Qisman bajarilgan</b> <tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji>'
-        elif status_lower in ["in progress", "processing", "jarayonda", "bajarilmoqda"]:
-            st_display = '<b>Bajarilmoqda</b> <tg-emoji emoji-id="6538800872766034734">🚀</tg-emoji>'
-        else:
-            st_display = "<b>Kutilmoqda</b> ⏳"
 
-        service_title = ord_item.get("service_title", "Xizmat")
-        qty = ord_item.get("quantity", 0)
-        price = float(ord_item.get("price", 0.0))
+@router.message(Command("myorders", "buyurtmalar"))
+async def cmd_my_orders(message: types.Message):
+    user_id = message.from_user.id
+    text, kb = await render_user_orders(user_id=user_id, category="all", page=1)
+    await message.answer(text=text, reply_markup=kb, parse_mode="HTML")
 
-        text += (
-            f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>ID:</b> <code>#{oid}</code>\n'
-            f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <i>{service_title}</i>\n'
-            f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdor:</b> <b>{qty:,} ta</b> | <tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>{price:,.0f} so\'m</b>\n'
-            f'<tg-emoji emoji-id="5447644880824181073">🔎</tg-emoji> <b>Holat:</b> {st_display}\n\n'
-        )
 
-    await callback.message.answer(text, parse_mode="HTML")
+@router.callback_query(F.data == "noop")
+async def callback_noop(callback: types.CallbackQuery):
+    await callback.answer()
 
 
 

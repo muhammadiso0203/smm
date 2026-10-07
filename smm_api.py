@@ -75,6 +75,20 @@ class GrandSMMClient:
                         return item
         return None
 
+    def get_cached_rate(self, service_id: int, default: int = 0) -> int:
+        """Keshdagi xizmat narxini sinxron qaytarish (agar keshda bo'lsa)"""
+        if self._services_cache and isinstance(self._services_cache, dict):
+            sid = int(service_id)
+            for platform, items in self._services_cache.items():
+                if isinstance(items, list):
+                    for item in items:
+                        if int(item.get("service", 0)) == sid:
+                            try:
+                                return int(float(item.get("rate", default)))
+                            except (ValueError, TypeError):
+                                return default
+        return default
+
     async def add_order(self, service_id: int, link: str, quantity: int) -> Dict[str, Any]:
         """
         Yangi SMM buyurtma qo'shish
