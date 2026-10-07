@@ -194,22 +194,32 @@ def set_orders_channel(channel: str) -> str:
 # ──────────────────────────────────────────
 
 def add_user(user_id: int, username: str = None, full_name: str = None) -> bool:
-    """Yangi foydalanuvchi qo'shish. True → yangi, False → avval bor"""
+    """Yangi foydalanuvchi qo'shish yoki mavjud foydalanuvchi ma'lumotlarini yangilash"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("""
-            INSERT OR IGNORE INTO users (user_id, username, full_name)
-            VALUES (?, ?, ?)
-        """, (user_id, username, full_name))
-        is_new = cursor.rowcount > 0
-        if is_new:
+        existing = cursor.execute("SELECT id FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        if existing:
+            cursor.execute("""
+                UPDATE users 
+                SET username = COALESCE(?, username), 
+                    full_name = COALESCE(?, full_name), 
+                    last_seen = CURRENT_TIMESTAMP 
+                WHERE user_id = ?
+            """, (username, full_name, user_id))
+            conn.commit()
+            return False
+        else:
+            cursor.execute("""
+                INSERT INTO users (user_id, username, full_name, joined_at, last_seen)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (user_id, username, full_name))
             cursor.execute("""
                 INSERT INTO stats (date, new_users) VALUES (date('now'), 1)
                 ON CONFLICT(date) DO UPDATE SET new_users = new_users + 1
             """)
-        conn.commit()
-        return is_new
+            conn.commit()
+            return True
     except Exception as e:
         logger.error(f"add_user xatosi: {e}")
         return False
@@ -226,9 +236,14 @@ def update_last_seen(user_id: int):
 
 
 def get_user(user_id: int):
-    """Foydalanuvchi ma'lumotlarini olish"""
+    """Foydalanuvchi ma'lumotlarini olish (vaqtlari mahalliy vaqtga moslangan holda)"""
     conn = get_connection()
-    user = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    user = conn.execute("""
+        SELECT id, user_id, username, full_name, phone, balance, is_admin, is_banned,
+               datetime(joined_at, 'localtime') as joined_at,
+               datetime(last_seen, 'localtime') as last_seen
+        FROM users WHERE user_id = ?
+    """, (user_id,)).fetchone()
     conn.close()
     return dict(user) if user else None
 
@@ -270,14 +285,14 @@ def get_stats():
     conn = get_connection()
     total   = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
     banned  = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
-    today   = conn.execute(
-        "SELECT new_users FROM stats WHERE date = date('now')"
+    today_row = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE date(joined_at, 'localtime') = date('now', 'localtime')"
     ).fetchone()
     conn.close()
     return {
         "total":    total,
         "banned":   banned,
-        "today":    today["new_users"] if today else 0,
+        "today":    today_row["c"] if today_row else 0,
     }
 
 
@@ -285,38 +300,60 @@ def get_admin_full_stats() -> dict:
     """Admin uchun kengaytirilgan to'liq moliyaviy va operatsion statistika"""
     conn = get_connection()
     
-    # Foydalanuvchilar
+    # 👥 Foydalanuvchilar
     total_users = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
     banned_users = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_banned = 1").fetchone()["c"]
     today_users_row = conn.execute("SELECT COUNT(*) as c FROM users WHERE date(joined_at, 'localtime') = date('now', 'localtime')").fetchone()
     today_users = today_users_row["c"] if today_users_row else 0
     
-    # Balanslar
+    # 💰 Balanslar
     bal_row = conn.execute("SELECT COALESCE(SUM(balance), 0) as s FROM users").fetchone()
     total_user_balance = float(bal_row["s"]) if bal_row else 0.0
     
-    # SMM Buyurtmalar
-    orders_total = conn.execute("SELECT COUNT(*) as c FROM orders").fetchone()["c"]
-    orders_today = conn.execute("SELECT COUNT(*) as c FROM orders WHERE date(created_at, 'localtime') = date('now', 'localtime')").fetchone()["c"]
-    order_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM orders").fetchone()
-    total_order_sum = float(order_sum_row["s"]) if order_sum_row else 0.0
-    order_today_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM orders WHERE date(created_at, 'localtime') = date('now', 'localtime')").fetchone()
-    today_order_sum = float(order_today_sum_row["s"]) if order_today_sum_row else 0.0
+    # 📦 SMM Buyurtmalar (service_id != 9999)
+    smm_total = conn.execute("SELECT COUNT(*) as c FROM orders WHERE service_id != 9999").fetchone()["c"]
+    smm_today = conn.execute("SELECT COUNT(*) as c FROM orders WHERE service_id != 9999 AND date(created_at, 'localtime') = date('now', 'localtime')").fetchone()["c"]
+    smm_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM orders WHERE service_id != 9999 AND status NOT IN ('Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded')").fetchone()
+    smm_total_sum = float(smm_sum_row["s"]) if smm_sum_row else 0.0
+    smm_today_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM orders WHERE service_id != 9999 AND status NOT IN ('Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded') AND date(created_at, 'localtime') = date('now', 'localtime')").fetchone()
+    smm_today_sum = float(smm_today_sum_row["s"]) if smm_today_sum_row else 0.0
+
+    # ⭐ Telegram Stars Buyurtmalar (service_id = 9999)
+    stars_total = conn.execute("SELECT COUNT(*) as c FROM orders WHERE service_id = 9999").fetchone()["c"]
+    stars_today = conn.execute("SELECT COUNT(*) as c FROM orders WHERE service_id = 9999 AND date(created_at, 'localtime') = date('now', 'localtime')").fetchone()["c"]
+    stars_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM orders WHERE service_id = 9999 AND status NOT IN ('Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded')").fetchone()
+    stars_total_sum = float(stars_sum_row["s"]) if stars_sum_row else 0.0
+    stars_today_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM orders WHERE service_id = 9999 AND status NOT IN ('Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded') AND date(created_at, 'localtime') = date('now', 'localtime')").fetchone()
+    stars_today_sum = float(stars_today_sum_row["s"]) if stars_today_sum_row else 0.0
+    stars_qty_row = conn.execute("SELECT COALESCE(SUM(quantity), 0) as q FROM orders WHERE service_id = 9999 AND status NOT IN ('Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded')").fetchone()
+    stars_total_qty = int(stars_qty_row["q"]) if stars_qty_row else 0
     
-    active_orders_count = conn.execute("""
+    # 📱 Virtual SMS Raqamlar
+    virtual_total = conn.execute("SELECT COUNT(*) as c FROM virtual_numbers").fetchone()["c"]
+    virtual_today = conn.execute("SELECT COUNT(*) as c FROM virtual_numbers WHERE date(created_at, 'localtime') = date('now', 'localtime')").fetchone()["c"]
+    virtual_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM virtual_numbers WHERE status != 'cancelled'").fetchone()
+    virtual_total_sum = float(virtual_sum_row["s"]) if virtual_sum_row else 0.0
+    virtual_today_sum_row = conn.execute("SELECT COALESCE(SUM(price), 0) as s FROM virtual_numbers WHERE status != 'cancelled' AND date(created_at, 'localtime') = date('now', 'localtime')").fetchone()
+    virtual_today_sum = float(virtual_today_sum_row["s"]) if virtual_today_sum_row else 0.0
+    virtual_active = conn.execute("SELECT COUNT(*) as c FROM virtual_numbers WHERE status = 'waiting'").fetchone()["c"]
+    
+    # ⏳ Faol Buyurtmalar (Barcha toifalar bo'yicha)
+    active_smm_stars = conn.execute("""
         SELECT COUNT(*) as c FROM orders 
         WHERE status NOT IN ('Completed', 'Bajarildi', 'Yakunlandi', 'Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded', 'Partial/Refunded', 'Partial')
     """).fetchone()["c"]
+    active_orders_count = active_smm_stars + virtual_active
     
-    # To'lovlar (Depozitlar)
+    # 💳 To'lovlar (Depozitlar)
     dep_total_row = conn.execute("SELECT COALESCE(SUM(amount), 0) as s FROM deposits WHERE status = 'completed'").fetchone()
     total_deposits_sum = float(dep_total_row["s"]) if dep_total_row else 0.0
     dep_today_row = conn.execute("SELECT COALESCE(SUM(amount), 0) as s FROM deposits WHERE status = 'completed' AND date(created_at, 'localtime') = date('now', 'localtime')").fetchone()
     today_deposits_sum = float(dep_today_row["s"]) if dep_today_row else 0.0
     pending_deposits_count = conn.execute("SELECT COUNT(*) as c FROM deposits WHERE status = 'pending' AND expires_at >= datetime('now', 'localtime')").fetchone()["c"]
     
-    # Virtual Raqamlar
-    virtual_numbers_count = conn.execute("SELECT COUNT(*) as c FROM virtual_numbers").fetchone()["c"]
+    # Jami aylanma (Barcha xizmatlar sof summasi)
+    total_turnover = smm_total_sum + stars_total_sum + virtual_total_sum
+    today_turnover = smm_today_sum + stars_today_sum + virtual_today_sum
     
     conn.close()
     return {
@@ -324,15 +361,38 @@ def get_admin_full_stats() -> dict:
         "banned_users": banned_users,
         "today_users": today_users,
         "total_user_balance": total_user_balance,
-        "orders_total": orders_total,
-        "orders_today": orders_today,
-        "total_order_sum": total_order_sum,
-        "today_order_sum": today_order_sum,
+        
+        "smm_total": smm_total,
+        "smm_today": smm_today,
+        "smm_total_sum": smm_total_sum,
+        "smm_today_sum": smm_today_sum,
+        
+        "stars_total": stars_total,
+        "stars_today": stars_today,
+        "stars_total_sum": stars_total_sum,
+        "stars_today_sum": stars_today_sum,
+        "stars_total_qty": stars_total_qty,
+        
+        "virtual_total": virtual_total,
+        "virtual_today": virtual_today,
+        "virtual_total_sum": virtual_total_sum,
+        "virtual_today_sum": virtual_today_sum,
+        "virtual_active": virtual_active,
+        
         "active_orders_count": active_orders_count,
+        "total_turnover": total_turnover,
+        "today_turnover": today_turnover,
+        
         "total_deposits_sum": total_deposits_sum,
         "today_deposits_sum": today_deposits_sum,
         "pending_deposits_count": pending_deposits_count,
-        "virtual_numbers_count": virtual_numbers_count,
+        
+        # Legacy moslik uchun
+        "orders_total": smm_total + stars_total,
+        "orders_today": smm_today + stars_today,
+        "total_order_sum": smm_total_sum + stars_total_sum,
+        "today_order_sum": smm_today_sum + stars_today_sum,
+        "virtual_numbers_count": virtual_total,
     }
 
 
@@ -383,11 +443,18 @@ def search_users(query: str, limit: int = 5):
     conn = get_connection()
     query_clean = str(query).strip().lstrip("@")
     if query_clean.isdigit():
-        rows = conn.execute("SELECT * FROM users WHERE user_id = ? OR CAST(user_id AS TEXT) LIKE ? LIMIT ?", 
-                            (int(query_clean), f"%{query_clean}%", limit)).fetchall()
+        rows = conn.execute("""
+            SELECT id, user_id, username, full_name, phone, balance, is_admin, is_banned,
+                   datetime(joined_at, 'localtime') as joined_at,
+                   datetime(last_seen, 'localtime') as last_seen
+            FROM users WHERE user_id = ? OR CAST(user_id AS TEXT) LIKE ? LIMIT ?
+        """, (int(query_clean), f"%{query_clean}%", limit)).fetchall()
     else:
         rows = conn.execute("""
-            SELECT * FROM users 
+            SELECT id, user_id, username, full_name, phone, balance, is_admin, is_banned,
+                   datetime(joined_at, 'localtime') as joined_at,
+                   datetime(last_seen, 'localtime') as last_seen
+            FROM users 
             WHERE username LIKE ? OR full_name LIKE ? 
             ORDER BY id DESC LIMIT ?
         """, (f"%{query_clean}%", f"%{query_clean}%", limit)).fetchall()
@@ -395,12 +462,25 @@ def search_users(query: str, limit: int = 5):
     return [dict(r) for r in rows]
 
 
-def get_recent_users(limit: int = 8):
-    """Oxirgi ro'yxatdan o'tgan foydalanuvchilar"""
+def get_recent_users(limit: int = 8, offset: int = 0):
+    """Oxirgi ro'yxatdan o'tgan foydalanuvchilar (sahifalash bilan)"""
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM users ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    rows = conn.execute("""
+        SELECT id, user_id, username, full_name, phone, balance, is_admin, is_banned,
+               datetime(joined_at, 'localtime') as joined_at,
+               datetime(last_seen, 'localtime') as last_seen
+        FROM users ORDER BY id DESC LIMIT ? OFFSET ?
+    """, (limit, offset)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_total_users_count() -> int:
+    """Jami foydalanuvchilar soni"""
+    conn = get_connection()
+    row = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()
+    conn.close()
+    return int(row["c"]) if row else 0
 
 
 def create_pending_deposit(user_id: int, amount: int, minutes: int = 5) -> dict:

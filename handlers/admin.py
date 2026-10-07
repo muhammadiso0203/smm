@@ -17,6 +17,7 @@ from database import (
     get_admin_full_stats,
     get_user,
     get_all_users,
+    get_total_users_count,
     search_users,
     get_recent_users,
     ban_user,
@@ -564,17 +565,22 @@ async def show_admin_stats(event: types.Message | types.CallbackQuery):
         f'<tg-emoji emoji-id="5415594207068822547">💰</tg-emoji> <b>Foydalanuvchilar Balansi:</b>\n'
         f' └ Jami botdagi qoldiq: <b>{s["total_user_balance"]:,.0f} so\'m</b>\n\n'
         f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>SMM Buyurtmalar:</b>\n'
-        f' ├ Jami buyurtmalar: <b>{s["orders_total"]:,} ta</b>\n'
-        f' ├ Jami aylanma: <b>{s["total_order_sum"]:,.0f} so\'m</b>\n'
-        f' ├ Bugungi buyurtmalar: <b>{s["orders_today"]:,} ta</b>\n'
-        f' ├ Bugungi aylanma: <b>{s["today_order_sum"]:,.0f} so\'m</b>\n'
-        f' └ Hozirda faol/kutilayotgan: <b>{s["active_orders_count"]:,} ta</b>\n\n'
+        f' ├ Jami: <b>{s["smm_total"]:,} ta</b> (<b>{s["smm_total_sum"]:,.0f} so\'m</b>)\n'
+        f' └ Bugun: <b>{s["smm_today"]:,} ta</b> (<b>{s["smm_today_sum"]:,.0f} so\'m</b>)\n\n'
+        f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars:</b>\n'
+        f' ├ Jami: <b>{s["stars_total"]:,} ta</b> ({s["stars_total_qty"]:,} ⭐️ — <b>{s["stars_total_sum"]:,.0f} so\'m</b>)\n'
+        f' └ Bugun: <b>{s["stars_today"]:,} ta</b> (<b>{s["stars_today_sum"]:,.0f} so\'m</b>)\n\n'
+        f'<tg-emoji emoji-id="5859232223865081255">📱</tg-emoji> <b>Virtual SMS Raqamlar:</b>\n'
+        f' ├ Jami: <b>{s["virtual_total"]:,} ta</b> (<b>{s["virtual_total_sum"]:,.0f} so\'m</b>)\n'
+        f' └ Bugun: <b>{s["virtual_today"]:,} ta</b> (<b>{s["virtual_today_sum"]:,.0f} so\'m</b>)\n\n'
+        f'<tg-emoji emoji-id="5215522595922779944">⚡️</tg-emoji> <b>Jami Sof Aylanma:</b>\n'
+        f' ├ Jami xaridlar: <b>{s["total_turnover"]:,.0f} so\'m</b>\n'
+        f' ├ Bugungi xaridlar: <b>{s["today_turnover"]:,.0f} so\'m</b>\n'
+        f' └ Faol/kutilayotgan: <b>{s["active_orders_count"]:,} ta</b>\n\n'
         f'<tg-emoji emoji-id="6025976946083500432">💳</tg-emoji> <b>Hisob To\'ldirishlar (Depozitlar):</b>\n'
         f' ├ Jami to\'ldirilgan: <b>{s["total_deposits_sum"]:,.0f} so\'m</b>\n'
         f' ├ Bugun to\'ldirilgan: <b>{s["today_deposits_sum"]:,.0f} so\'m</b>\n'
-        f' └ Kutilayotgan to\'lovlar: <b>{s["pending_deposits_count"]:,} ta</b>\n\n'
-        f'<tg-emoji emoji-id="5444965061749644170">📱</tg-emoji> <b>Virtual SMS Raqamlar:</b>\n'
-        f' └ Jami olingan raqamlar: <b>{s["virtual_numbers_count"]:,} ta</b>'
+        f' └ Kutilayotgan to\'lovlar: <b>{s["pending_deposits_count"]:,} ta</b>'
     )
 
     builder = InlineKeyboardBuilder()
@@ -615,16 +621,24 @@ async def cb_users_menu(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.callback_query(F.data == "adm:recent_users", F.from_user.func(lambda u: u.id in ADMINS))
+@router.callback_query(F.data.startswith("adm:recent_users"), F.from_user.func(lambda u: u.id in ADMINS))
 async def cb_recent_users(callback: types.CallbackQuery):
-    users = get_recent_users(8)
+    parts = callback.data.split(":")
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+    limit = 8
+    total_users = get_total_users_count()
+    total_pages = max(1, (total_users + limit - 1) // limit)
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * limit
+
+    users = get_recent_users(limit=limit, offset=offset)
     if not users:
         await callback.message.edit_text("Hozircha foydalanuvchilar mavjud emas.", reply_markup=admin_back_kb("users"))
         await callback.answer()
         return
 
     builder = InlineKeyboardBuilder()
-    text_lines = ["📋 <b>So'nggi ro'yxatdan o'tgan foydalanuvchilar:</b>\n"]
+    text_lines = [f"📋 <b>Ro'yxatdan o'tgan foydalanuvchilar ({page}/{total_pages}):</b>\n"]
     for u in users:
         uid = u["user_id"]
         name = (u["full_name"] or "Foydalanuvchi")[:18]
@@ -633,7 +647,20 @@ async def cb_recent_users(callback: types.CallbackQuery):
         text_lines.append(f"{status_icon} <code>{uid}</code> | {name} | <b>{bal:,.0f} so'm</b>")
         builder.row(InlineKeyboardButton(text=f"👤 {name} ({uid})", callback_data=f"adm:uview:{uid}"))
 
-    builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm:users"))
+    # Sahifalash
+    if total_pages > 1:
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append(InlineKeyboardButton(text="Oldingi", callback_data=f"adm:recent_users:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
+        nav_buttons.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop", icon_custom_emoji_id="6323234179555263965"))
+        if page < total_pages:
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi", callback_data=f"adm:recent_users:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
+        builder.row(*nav_buttons)
+
+    builder.row(
+        InlineKeyboardButton(text="Yangilash", callback_data=f"adm:recent_users:{page}", icon_custom_emoji_id="5895288113537748673"),
+        InlineKeyboardButton(text="Orqaga", callback_data="adm:users", icon_custom_emoji_id="5416113713428057601")
+    )
     await callback.message.edit_text("\n".join(text_lines), reply_markup=builder.as_markup(), parse_mode="HTML")
     await callback.answer()
 
@@ -707,8 +734,8 @@ async def send_user_card(event: types.Message | types.CallbackQuery, user_id: in
         f'🔗 <b>Username:</b> {uname}\n'
         f'<tg-emoji emoji-id="5415594207068822547">💰</tg-emoji> <b>Balans:</b> <b>{bal:,.0f} so\'m</b>\n'
         f'📊 <b>Holati:</b> {"🚫 Bloklangan" if banned else "🟢 Faol"}\n'
-        f'📅 <b>Ro\'yxatdan o\'tgan:</b> {joined}\n'
-        f'🕐 <b>Oxirgi faollik:</b> {last_seen}'
+        f'📅 <b>Ro\'yxatdan o\'tgan:</b> <code>{joined}</code>\n'
+        f'🕐 <b>Oxirgi faollik:</b> <code>{last_seen}</code>'
     )
 
     kb = admin_user_card_kb(uid, banned)

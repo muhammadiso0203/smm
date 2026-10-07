@@ -7,7 +7,7 @@ from typing import Any, Awaitable, Callable, Dict, Tuple, List
 from aiogram import BaseMiddleware, Bot
 from aiogram.types import TelegramObject, Message, CallbackQuery
 
-from database import update_last_seen, is_banned, get_mandatory_channels
+from database import add_user, is_banned, get_mandatory_channels
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +71,16 @@ class BanCheckMiddleware(BaseMiddleware):
         if not user:
             return await handler(event, data)
 
-        # last_seen yangilash
-        update_last_seen(user.id)
+        # Foydalanuvchini bazaga qo'shish yoki ma'lumotlarini (last_seen, username, ism) yangilash
+        add_user(user.id, user.username, user.full_name)
 
         # Ban tekshirish (Adminlar hech qachon bloklanmaydi)
         from config import ADMINS
         if user.id not in ADMINS and is_banned(user.id):
             if isinstance(event, Message):
-                await event.answer("🚫 Siz botdan blocklangansiz.")
+                await event.answer("🚫 Siz botdan bloklangansiz.")
             elif isinstance(event, CallbackQuery):
-                await event.answer("🚫 Siz botdan blocklangansiz!", show_alert=True)
+                await event.answer("🚫 Siz botdan bloklangansiz!", show_alert=True)
             return 
 
         return await handler(event, data)
