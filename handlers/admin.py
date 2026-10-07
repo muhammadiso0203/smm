@@ -244,36 +244,36 @@ def admin_orders_kb(counts: dict = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text=f"📦 SMM ({counts.get('smm', 0)})", 
+            text=f"SMM ({counts.get('smm', 0)})", 
             callback_data="adm:ords:smm:1",
             icon_custom_emoji_id="6028346797368283073"
         ),
         InlineKeyboardButton(
-            text=f"⭐ Stars ({counts.get('stars', 0)})", 
+            text=f"Stars ({counts.get('stars', 0)})", 
             callback_data="adm:ords:stars:1",
             icon_custom_emoji_id="5897792062291449826"
         ),
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"📱 Raqamlar ({counts.get('number', 0)})", 
+            text=f"Raqamlar ({counts.get('number', 0)})", 
             callback_data="adm:ords:number:1",
             icon_custom_emoji_id="5859232223865081255"
         ),
         InlineKeyboardButton(
-            text=f"⏳ Faol ({counts.get('active', 0)})", 
+            text=f"Faol ({counts.get('active', 0)})", 
             callback_data="adm:ords:active:1",
             icon_custom_emoji_id="5215522595922779944"
         ),
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"📋 Barchasi ({counts.get('total', 0)})", 
+            text=f"Barchasi ({counts.get('total', 0)})", 
             callback_data="adm:ords:all:1",
             icon_custom_emoji_id="5895288113537748673"
         ),
         InlineKeyboardButton(
-            text="🔍 Qidirish", 
+            text="Qidirish", 
             callback_data="adm:search_order",
             icon_custom_emoji_id="5879939498149679716"
         ),
