@@ -16,7 +16,7 @@ from config import (
     ADMINS,
     CARD_NUMBER
 )
-from database import find_pending_deposit_by_amount, complete_deposit
+from database import find_pending_deposit_by_amount, complete_deposit, get_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s — %(message)s")
 logger = logging.getLogger("userbot")
@@ -90,6 +90,10 @@ async def humo_notification_handler(event):
     credited_amount = dep["amount"]
     new_balance = completed["new_balance"]
 
+    u_data = get_user(user_id) or {}
+    uname = f"@{u_data.get('username')}" if u_data.get("username") else "—"
+    fname = u_data.get("full_name") or f"User {user_id}"
+
     logger.info(f"✅ To'lov muvaffaqiyatli yakunlandi! Foydalanuvchi: {user_id}, Summa: {credited_amount}, Yangi balans: {new_balance}")
 
     # Foydalanuvchiga bot nomidan xushxabar yuborish
@@ -105,11 +109,13 @@ async def humo_notification_handler(event):
     for admin_id in ADMINS:
         await send_bot_message(
             admin_id,
-            f"💸 <b>To'lov muvaffaqiyatli qabul qilindi!</b>\n\n"
-            f"👤 Foydalanuvchi: <code>{user_id}</code>\n"
-            f"💳 Kartaga tushdi: <b>{received_amount:,} so'm</b>\n"
-            f"➕ Balansga qo'shildi: <b>{credited_amount:,} so'm</b>\n"
-            f"💰 Yangi balansi: <b>{new_balance:,.0f} so'm</b>"
+            f'<tg-emoji emoji-id="6026257381678124710">💸</tg-emoji> <b>HumoCard to\'lovi qabul qilindi!</b>\n\n'
+            f'🆔 <b>Depozit ID:</b> <code>#{dep["id"]}</code>\n'
+            f'👤 <b>Foydalanuvchi:</b> {fname} ({uname})\n'
+            f'🆔 <b>User ID:</b> <code>{user_id}</code>\n'
+            f'💳 <b>Kartaga tushdi:</b> <b>{received_amount:,} so\'m</b>\n'
+            f'➕ <b>Balansga qo\'shildi:</b> <b>{credited_amount:,} so\'m</b>\n'
+            f'<tg-emoji emoji-id="5415594207068822547">💰</tg-emoji> <b>Yangi balansi:</b> <b>{new_balance:,.0f} so\'m</b>'
         )
 
 

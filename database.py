@@ -618,28 +618,80 @@ def get_recent_orders(limit: int = 8):
     return [dict(r) for r in rows]
 
 
-def get_recent_deposits(limit: int = 8):
-    """Oxirgi depozitlar/to'lovlar ro'yxati"""
+def get_recent_deposits(limit: int = 8, offset: int = 0):
+    """Oxirgi depozitlar/to'lovlar ro'yxati (foydalanuvchi ma'lumotlari bilan)"""
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM deposits ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    rows = conn.execute("""
+        SELECT d.id, d.user_id, d.amount, d.exact_amount, d.status,
+               datetime(d.created_at, 'localtime') as created_at,
+               datetime(d.expires_at, 'localtime') as expires_at,
+               u.username, u.full_name
+        FROM deposits d
+        LEFT JOIN users u ON d.user_id = u.user_id
+        ORDER BY d.id DESC LIMIT ? OFFSET ?
+    """, (limit, offset)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
-def get_pending_deposits(limit: int = 8):
-    """Kutilayotgan depozitlar"""
+def get_recent_deposits_count() -> int:
+    """Jami barcha depozitlar soni"""
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM deposits WHERE status = 'pending' ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    row = conn.execute("SELECT COUNT(*) as c FROM deposits").fetchone()
+    conn.close()
+    return int(row["c"]) if row else 0
+
+
+def get_pending_deposits(limit: int = 8, offset: int = 0):
+    """Kutilayotgan depozitlar (foydalanuvchi ma'lumotlari bilan)"""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT d.id, d.user_id, d.amount, d.exact_amount, d.status,
+               datetime(d.created_at, 'localtime') as created_at,
+               datetime(d.expires_at, 'localtime') as expires_at,
+               u.username, u.full_name
+        FROM deposits d
+        LEFT JOIN users u ON d.user_id = u.user_id
+        WHERE d.status = 'pending'
+        ORDER BY d.id DESC LIMIT ? OFFSET ?
+    """, (limit, offset)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_pending_deposits_count() -> int:
+    """Kutilayotgan depozitlar soni"""
+    conn = get_connection()
+    row = conn.execute("SELECT COUNT(*) as c FROM deposits WHERE status = 'pending'").fetchone()
+    conn.close()
+    return int(row["c"]) if row else 0
 
 
 def get_deposit_by_id(deposit_id: int):
-    """Depozit ID bo'yicha ma'lumot olish"""
+    """Depozit ID bo'yicha to'liq ma'lumot olish"""
     conn = get_connection()
-    row = conn.execute("SELECT * FROM deposits WHERE id = ?", (deposit_id,)).fetchone()
+    row = conn.execute("""
+        SELECT d.id, d.user_id, d.amount, d.exact_amount, d.status,
+               datetime(d.created_at, 'localtime') as created_at,
+               datetime(d.expires_at, 'localtime') as expires_at,
+               u.username, u.full_name
+        FROM deposits d
+        LEFT JOIN users u ON d.user_id = u.user_id
+        WHERE d.id = ?
+    """, (deposit_id,)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def cancel_deposit(deposit_id: int) -> bool:
+    """Kutilayotgan depozitni bekor qilish"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE deposits SET status = 'cancelled' WHERE id = ? AND status = 'pending'", (deposit_id,))
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success
 
 
 # ──────────────────────────────────────────

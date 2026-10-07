@@ -1391,7 +1391,7 @@ async def process_deposit_amount(message: types.Message, state: FSMContext):
     text_msg = (
         f'<b>To\'lov rekvizitlari:</b>\n\n'
         f'<tg-emoji emoji-id="5445353829304387411">💳</tg-emoji> <b>Karta raqami:</b>\n<code>{CARD_NUMBER}</code> (nusxalash uchun bosing)\n'
-        f'<tg-emoji emoji-id="6035084557378654059">👤</tg-emoji><b>Karta egasi:</b> <b>{CARD_HOLDER}</b>\n\n'
+        f'<tg-emoji emoji-id="6035084557378654059">👤</tg-emoji> <b>Karta egasi:</b> <b>{CARD_HOLDER}</b>\n\n'
         f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lashingiz kerak bo\'lgan ANIQ summa:</b>\n'
         f'<tg-emoji emoji-id="5415758949129404605">💰</tg-emoji> <code>{dep["exact_amount"]}</code> so\'m (nusxalash uchun bosing)\n\n'
 
@@ -1402,6 +1402,84 @@ async def process_deposit_amount(message: types.Message, state: FSMContext):
     )
 
     await message.answer(text=text_msg, reply_markup=keyboard.as_markup(), parse_mode="HTML")
+
+    # Adminga yangi to'lov so'rovi haqida xabarnoma yuborish
+    user_name = message.from_user.full_name or "Foydalanuvchi"
+    uname = f"@{message.from_user.username}" if message.from_user.username else f"ID: <code>{message.from_user.id}</code>"
+    exact_amt = dep["exact_amount"]
+    dep_id = dep["id"]
+
+    admin_alert = (
+        f'<tg-emoji emoji-id="6044796776462930061">⏳</tg-emoji> <b>YANGI TO\'LOV SO\'ROVI!</b>\n\n'
+        f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Depozit ID:</b> <code>#{dep_id}</code>\n'
+        f'<tg-emoji emoji-id="6032609071373226027">👤</tg-emoji> <b>Foydalanuvchi:</b> {html.escape(user_name)} ({uname})\n'
+        f'🆔 <b>User ID:</b> <code>{message.from_user.id}</code>\n'
+        f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Asl summa:</b> <b>{amount:,.0f} so\'m</b>\n'
+        f'<tg-emoji emoji-id="5415758949129404605">💵</tg-emoji> <b>To\'lashi kerak:</b> <b>{exact_amt:,.0f} so\'m</b>\n'
+        f'⏳ <b>Amal qilish vaqti:</b> 5 daqiqa\n'
+        f'💳 <b>Karta:</b> <code>{CARD_NUMBER}</code>'
+    )
+
+    adm_builder = InlineKeyboardBuilder()
+    adm_builder.row(
+        InlineKeyboardButton(
+            text=f"✅ #{dep_id} ni tasdiqlash ({exact_amt:,.0f} so'm)",
+            callback_data=f"adm:confdep:{dep_id}",
+            icon_custom_emoji_id="6011046912078787676"
+        )
+    )
+    adm_builder.row(
+        InlineKeyboardButton(
+            text="👤 Foydalanuvchi",
+            callback_data=f"adm:uview:{message.from_user.id}",
+            icon_custom_emoji_id="6032609071373226027"
+        ),
+        InlineKeyboardButton(
+            text="💳 Barcha kutilayotganlar",
+            callback_data="adm:pending_deps",
+            icon_custom_emoji_id="5262838597060422237"
+        )
+    )
+
+    for admin_id in ADMINS:
+        try:
+            await message.bot.send_message(
+                chat_id=admin_id,
+                text=admin_alert,
+                reply_markup=adm_builder.as_markup(),
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+
+@router.callback_query(F.data == "cancel_deposit")
+async def callback_cancel_deposit(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    conn = get_connection()
+    conn.execute("UPDATE deposits SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", (callback.from_user.id,))
+    conn.commit()
+    conn.close()
+
+    user_bal = get_user_balance(callback.from_user.id)
+    keyboard = InlineKeyboardBuilder()
+    keyboard.row(InlineKeyboardButton(text="💳 Hisobni to'ldirish", callback_data="hisob_to'ldirish"))
+    keyboard.row(InlineKeyboardButton(text="« Asosiy menyu", callback_data="back_to_main"))
+
+    try:
+        await callback.message.edit_text(
+            f'<tg-emoji emoji-id="6032903688949862892">❌</tg-emoji> <b>To\'lov bekor qilindi.</b>\n\n'
+            f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> Sizning balansingiz: <b>{user_bal:,.0f} so\'m</b>',
+            reply_markup=keyboard.as_markup(),
+            parse_mode="HTML"
+        )
+    except Exception:
+        await callback.message.answer(
+            f'<tg-emoji emoji-id="6032903688949862892">❌</tg-emoji> <b>To\'lov bekor qilindi.</b>',
+            reply_markup=keyboard.as_markup(),
+            parse_mode="HTML"
+        )
+    await callback.answer("To'lov bekor qilindi.")
 
 
 
