@@ -5,6 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.exceptions import TelegramBadRequest
 
 from config import ADMINS, CARD_NUMBER, CARD_HOLDER, ADMIN_USERNAME, STAR_PRICE_UZS
 from database import (
@@ -1570,18 +1571,22 @@ async def render_user_orders(user_id: int, category: str = "smm", page: int = 1)
 
 @router.callback_query(F.data == "buyurtmalarim")
 async def callback_orders(callback: types.CallbackQuery):
-    await callback.answer()
     user_id = callback.from_user.id
     text, kb = await render_user_orders_menu(user_id=user_id)
     try:
         await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer()
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            await callback.answer("✅ Yangilandi")
+        else:
+            await callback.answer()
     except Exception:
-        await callback.message.answer(text=text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer()
 
 
 @router.callback_query(F.data.startswith("myord:"))
 async def callback_orders_filter(callback: types.CallbackQuery):
-    await callback.answer()
     user_id = callback.from_user.id
     parts = callback.data.split(":")
     category = parts[1] if len(parts) > 1 else "smm"
@@ -1590,8 +1595,14 @@ async def callback_orders_filter(callback: types.CallbackQuery):
     text, kb = await render_user_orders(user_id=user_id, category=category, page=page)
     try:
         await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer("✅ Yangilandi")
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            await callback.answer("✅ Yangilandi")
+        else:
+            await callback.answer()
     except Exception:
-        await callback.message.answer(text=text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer()
 
 
 @router.message(Command("myorders", "buyurtmalar"))
