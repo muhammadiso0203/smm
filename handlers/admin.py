@@ -1222,15 +1222,15 @@ async def cb_user_orders_list(callback: types.CallbackQuery):
 
         if itype == "stars":
             qty = o.get("quantity", 0)
-            btn_text = f"⭐ #{oid} • {qty} Stars ({st})"
+            btn_text = f"#{oid} • {qty} Stars ({st})"
             emoji_id = "5897792062291449826"
         elif itype == "number":
             num_str = o.get("number") or "Noma'lum"
-            btn_text = f"📱 #{oid} • {num_str} ({st})"
+            btn_text = f"#{oid} • {num_str} ({st})"
             emoji_id = "5859232223865081255"
         else:
             title = (o.get("title") or "SMM Xizmat")[:15]
-            btn_text = f"📦 #{oid} • {title} ({st})"
+            btn_text = f"#{oid} • {title} ({st})"
             emoji_id = "6028346797368283073"
 
         builder.row(InlineKeyboardButton(
