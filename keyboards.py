@@ -1496,14 +1496,14 @@ def user_empty_orders_keyboard() -> InlineKeyboardMarkup:
     """Buyurtmalar bo'lmaganda chiqadigan tugmalar"""
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🛒 SMM Xizmatlari", callback_data="smm", icon_custom_emoji_id="6028346797368283073"),
-        InlineKeyboardButton(text="📱 Nomer Olish", callback_data="number", icon_custom_emoji_id="5444965061749644170")
+        InlineKeyboardButton(text="SMM Xizmatlari", callback_data="smm", icon_custom_emoji_id="6028346797368283073"),
+        InlineKeyboardButton(text="Nomer Olish", callback_data="number", icon_custom_emoji_id="5444965061749644170")
     )
     builder.row(
-        InlineKeyboardButton(text="⭐ Stars Xizmati", callback_data="stars", icon_custom_emoji_id="5897792062291449826")
+        InlineKeyboardButton(text="Stars Xizmati", callback_data="stars", icon_custom_emoji_id="5897792062291449826")
     )
     builder.row(
-        InlineKeyboardButton(text="« Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601")
+        InlineKeyboardButton(text="Asosiy menyu", callback_data="back_to_main", icon_custom_emoji_id="5416113713428057601")
     )
     return builder.as_markup()
 

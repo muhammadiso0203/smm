@@ -1893,12 +1893,12 @@ async def process_add_mandatory_channel(message: types.Message, state: FSMContex
             builder = InlineKeyboardBuilder()
             builder.row(
                 InlineKeyboardButton(
-                    text="➕ Yana kanal qo'shish",
+                    text="Yana kanal qo'shish",
                     callback_data="adm:add_mandatory_channel",
                     icon_custom_emoji_id="5370951118698339120"
                 ),
                 InlineKeyboardButton(
-                    text="📢 Kanallar ro'yxati",
+                    text="Kanallar ro'yxati",
                     callback_data="adm:mandatory_channels",
                     icon_custom_emoji_id="5206607081334906820"
                 ),
