@@ -66,7 +66,8 @@ from keyboards import (
     stars_menu,
     stars_confirm_keyboard,
     subscription_required_kb,
-    user_orders_keyboard,
+    user_orders_main_menu,
+    user_orders_category_keyboard,
     user_empty_orders_keyboard
 )
 from middlewares import check_user_subscription
@@ -1405,11 +1406,10 @@ async def process_deposit_amount(message: types.Message, state: FSMContext):
 
 
 
-async def render_user_orders(user_id: int, category: str = "all", page: int = 1):
-    PAGE_SIZE = 5
+async def render_user_orders_menu(user_id: int):
+    """Buyurtmalarim bosh menyusi - 3 ta toifa tanlash"""
     counts = get_user_orders_count(user_id)
 
-    # Agar foydalanuvchida umuman birorta buyurtma bo'lmasa:
     if counts["total"] == 0:
         text = (
             '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening Buyurtmalarim</b>\n\n'
@@ -1418,7 +1418,22 @@ async def render_user_orders(user_id: int, category: str = "all", page: int = 1)
         )
         return text, user_empty_orders_keyboard()
 
-    cat_total = counts.get(category, counts["total"]) if category != "all" else counts["total"]
+    text = (
+        '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening Buyurtmalarim</b>\n\n'
+        'Kerakli buyurtmalar bo\'limini tanlang:\n\n'
+        f'• 📦 <b>SMM Buyurtmalari:</b> <code>{counts.get("smm", 0)} ta</code>\n'
+        f'• ⭐ <b>Telegram Stars:</b> <code>{counts.get("stars", 0)} ta</code>\n'
+        f'• 📱 <b>Virtual Raqamlar:</b> <code>{counts.get("number", 0)} ta</code>\n\n'
+        f'📊 <b>Jami buyurtmalaringiz:</b> <b>{counts.get("total", 0)} ta</b>'
+    )
+    return text, user_orders_main_menu(counts)
+
+
+async def render_user_orders(user_id: int, category: str = "smm", page: int = 1):
+    PAGE_SIZE = 5
+    counts = get_user_orders_count(user_id)
+
+    cat_total = counts.get(category, 0)
     total_pages = max(1, (cat_total + PAGE_SIZE - 1) // PAGE_SIZE)
     page = max(1, min(page, total_pages))
     offset = (page - 1) * PAGE_SIZE
@@ -1426,23 +1441,22 @@ async def render_user_orders(user_id: int, category: str = "all", page: int = 1)
     orders = get_user_unified_orders(user_id=user_id, category=category, limit=PAGE_SIZE, offset=offset)
 
     category_names = {
-        "all": "Barchasi",
-        "smm": "SMM Xizmatlari",
-        "number": "Virtual Raqamlar",
-        "stars": "Telegram Stars"
+        "smm": "📦 SMM Buyurtmalari",
+        "number": "📱 Virtual Raqamlar",
+        "stars": "⭐ Telegram Stars"
     }
-    cat_title = category_names.get(category, "Barchasi")
+    cat_title = category_names.get(category, "📦 SMM Buyurtmalari")
 
     header = (
-        f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Mening Buyurtmalarim</b> ({cat_title})\n\n'
-        f'📊 <b>Jami:</b> <b>{counts["total"]} ta</b> (📦 SMM: <b>{counts["smm"]}</b> | 📱 Raqam: <b>{counts["number"]}</b> | ⭐ Stars: <b>{counts["stars"]}</b>)\n'
+        f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>{cat_title}</b>\n\n'
+        f'📊 <b>Jami:</b> <b>{cat_total} ta</b> | Sahifa: <b>{page}/{total_pages}</b>\n'
         f'━━━━━━━━━━━━━━━━━━━━\n\n'
     )
 
     if not orders:
         body = (
-            f'<i>Ushbu bo\'limda ({cat_title}) hozircha buyurtmalar yo\'q.</i>\n\n'
-            f'Pastdagi tugmalar orqali boshqa toifani tanlashingiz mumkin 👇'
+            f'<i>Ushbu bo\'limda hozircha buyurtmalar yo\'q.</i>\n\n'
+            f'Pastdagi tugmalar orqali boshqa bo\'limni tanlashingiz mumkin 👇'
         )
     else:
         items_text = []
@@ -1546,11 +1560,10 @@ async def render_user_orders(user_id: int, category: str = "all", page: int = 1)
     # Faol kutilayotgan virtual raqamlarni topamiz (tezkor SMS tekshirish tugmasi uchun)
     waiting_numbers = [item for item in orders if item.get("type") == "number" and item.get("status") == "waiting"]
 
-    kb = user_orders_keyboard(
+    kb = user_orders_category_keyboard(
         category=category, 
         page=page, 
         total_pages=total_pages, 
-        counts=counts, 
         waiting_numbers=waiting_numbers
     )
     return header + body, kb
@@ -1560,7 +1573,7 @@ async def render_user_orders(user_id: int, category: str = "all", page: int = 1)
 async def callback_orders(callback: types.CallbackQuery):
     await callback.answer()
     user_id = callback.from_user.id
-    text, kb = await render_user_orders(user_id=user_id, category="all", page=1)
+    text, kb = await render_user_orders_menu(user_id=user_id)
     try:
         await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="HTML")
     except Exception:
@@ -1572,7 +1585,7 @@ async def callback_orders_filter(callback: types.CallbackQuery):
     await callback.answer()
     user_id = callback.from_user.id
     parts = callback.data.split(":")
-    category = parts[1] if len(parts) > 1 else "all"
+    category = parts[1] if len(parts) > 1 else "smm"
     page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
     
     text, kb = await render_user_orders(user_id=user_id, category=category, page=page)
@@ -1585,7 +1598,7 @@ async def callback_orders_filter(callback: types.CallbackQuery):
 @router.message(Command("myorders", "buyurtmalar"))
 async def cmd_my_orders(message: types.Message):
     user_id = message.from_user.id
-    text, kb = await render_user_orders(user_id=user_id, category="all", page=1)
+    text, kb = await render_user_orders_menu(user_id=user_id)
     await message.answer(text=text, reply_markup=kb, parse_mode="HTML")
 
 

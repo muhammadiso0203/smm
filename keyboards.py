@@ -1411,26 +1411,45 @@ def subscription_required_kb(channels: list) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def user_orders_keyboard(category: str, page: int, total_pages: int, counts: dict, waiting_numbers: list = None) -> InlineKeyboardMarkup:
-    """Foydalanuvchi buyurtmalar menyusi tugmalari"""
+def user_orders_main_menu(counts: dict) -> InlineKeyboardMarkup:
+    """Buyurtmalarim 3 ta asosiy bo'lim tanlash menyusi"""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text=f"📦 SMM Buyurtmalari ({counts.get('smm', 0)})",
+            callback_data="myord:smm:1",
+            icon_custom_emoji_id="6028346797368283073"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"Stars Buyurtmalari ({counts.get('stars', 0)})",
+            callback_data="myord:stars:1",
+            icon_custom_emoji_id="5897792062291449826"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"Virtual Raqamlar ({counts.get('number', 0)})",
+            callback_data="myord:number:1",
+            icon_custom_emoji_id="5859232223865081255"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Asosiy menyu",
+            callback_data="back_to_main",
+            icon_custom_emoji_id="5416113713428057601"
+        )
+    )
+    return builder.as_markup()
+
+
+def user_orders_category_keyboard(category: str, page: int, total_pages: int, waiting_numbers: list = None) -> InlineKeyboardMarkup:
+    """Tanlangan kategoriya buyurtmalari tugmalari"""
     builder = InlineKeyboardBuilder()
 
-    # 1. Kategoriya filtrlari
-    btn_all = f"{'🔘' if category == 'all' else '▫️'} Barchasi ({counts.get('total', 0)})"
-    btn_smm = f"{'🔘' if category == 'smm' else '▫️'} 📦 SMM ({counts.get('smm', 0)})"
-    btn_num = f"{'🔘' if category == 'number' else '▫️'} 📱 Raqam ({counts.get('number', 0)})"
-    btn_stars = f"{'🔘' if category == 'stars' else '▫️'} ⭐ Stars ({counts.get('stars', 0)})"
-
-    builder.row(
-        InlineKeyboardButton(text=btn_all, callback_data="myord:all:1"),
-        InlineKeyboardButton(text=btn_smm, callback_data="myord:smm:1")
-    )
-    builder.row(
-        InlineKeyboardButton(text=btn_num, callback_data="myord:number:1"),
-        InlineKeyboardButton(text=btn_stars, callback_data="myord:stars:1")
-    )
-
-    # 2. Agar kutilayotgan virtual raqamlar bo'lsa, ularni to'g'ridan-to'g'ri tekshirish tugmasi
+    # 1. Agar kutilayotgan virtual raqamlar bo'lsa, ularni to'g'ridan-to'g'ri tekshirish tugmasi
     if waiting_numbers:
         for num_item in waiting_numbers[:2]:
             builder.row(InlineKeyboardButton(
@@ -1439,17 +1458,17 @@ def user_orders_keyboard(category: str, page: int, total_pages: int, counts: dic
                 icon_custom_emoji_id="5456432998092133477"
             ))
 
-    # 3. Sahifalash (agar 1 dan ortiq sahifa bo'lsa)
+    # 2. Sahifalash (agar 1 dan ortiq sahifa bo'lsa)
     if total_pages > 1:
         nav_buttons = []
         if page > 1:
-            nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"myord:{category}:{page - 1}"))
+            nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"myord:{category}:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
         nav_buttons.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
         if page < total_pages:
-            nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"myord:{category}:{page + 1}"))
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"myord:{category}:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
         builder.row(*nav_buttons)
 
-    # 4. Yangilash va Asosiy menyu
+    # 3. Bo'limlarga qaytish va yangilash
     builder.row(
         InlineKeyboardButton(
             text="🔄 Yangilash", 
@@ -1457,7 +1476,14 @@ def user_orders_keyboard(category: str, page: int, total_pages: int, counts: dic
             icon_custom_emoji_id="5416113713428057601"
         ),
         InlineKeyboardButton(
-            text="« Asosiy menyu", 
+            text="📁 Bo'limlar", 
+            callback_data="buyurtmalarim",
+            icon_custom_emoji_id="5864114012542736772"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="🔙 Asosiy menyu", 
             callback_data="back_to_main",
             icon_custom_emoji_id="5416113713428057601"
         )
