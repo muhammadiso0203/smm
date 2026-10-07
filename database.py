@@ -702,6 +702,148 @@ def get_user_unified_orders(user_id: int, category: str = "all", limit: int = 5,
     return results[offset:offset + limit]
 
 
+def get_all_orders_count() -> dict:
+    """Admin uchun barcha buyurtmalar soni (toifalar bo'yicha)"""
+    conn = get_connection()
+    smm_count = conn.execute(
+        "SELECT COUNT(*) as c FROM orders WHERE service_id != 9999"
+    ).fetchone()["c"]
+    
+    stars_count = conn.execute(
+        "SELECT COUNT(*) as c FROM orders WHERE service_id = 9999"
+    ).fetchone()["c"]
+    
+    number_count = conn.execute(
+        "SELECT COUNT(*) as c FROM virtual_numbers"
+    ).fetchone()["c"]
+    
+    active_smm_stars = conn.execute("""
+        SELECT COUNT(*) as c FROM orders 
+        WHERE status NOT IN ('Completed', 'Bajarildi', 'Yakunlandi', 'Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded', 'Partial/Refunded', 'Partial')
+    """).fetchone()["c"]
+
+    active_numbers = conn.execute("""
+        SELECT COUNT(*) as c FROM virtual_numbers 
+        WHERE status = 'waiting'
+    """).fetchone()["c"]
+
+    conn.close()
+    return {
+        "smm": smm_count,
+        "stars": stars_count,
+        "number": number_count,
+        "active": active_smm_stars + active_numbers,
+        "total": smm_count + stars_count + number_count
+    }
+
+
+def get_all_unified_orders(category: str = "all", limit: int = 8, offset: int = 0) -> list:
+    """
+    Admin uchun barcha foydalanuvchilarning buyurtmalarini toifalar bo'yicha olish
+    category: 'all', 'smm', 'stars', 'number', 'active'
+    """
+    conn = get_connection()
+    results = []
+    
+    if category in ["all", "smm", "stars", "active"]:
+        query = "SELECT * FROM orders WHERE 1=1"
+        if category == "smm":
+            query += " AND service_id != 9999"
+        elif category == "stars":
+            query += " AND service_id = 9999"
+        elif category == "active":
+            query += " AND status NOT IN ('Completed', 'Bajarildi', 'Yakunlandi', 'Canceled', 'Cancelled', 'Bekor qilindi', 'Canceled/Refunded', 'Partial/Refunded', 'Partial')"
+        
+        rows = conn.execute(query).fetchall()
+        for r in rows:
+            d = dict(r)
+            is_stars = (d.get("service_id") == 9999)
+            results.append({
+                "type": "stars" if is_stars else "smm",
+                "id": d["order_id"],
+                "db_id": d["id"],
+                "user_id": d["user_id"],
+                "service_id": d.get("service_id"),
+                "title": d.get("service_title", "Xizmat"),
+                "quantity": d.get("quantity", 0),
+                "price": float(d.get("price", 0.0) or 0.0),
+                "status": d.get("status", "Pending"),
+                "link": d.get("link", ""),
+                "created_at": d.get("created_at", "")
+            })
+
+    if category in ["all", "number", "active"]:
+        v_query = "SELECT * FROM virtual_numbers WHERE 1=1"
+        if category == "active":
+            v_query += " AND status = 'waiting'"
+            
+        v_rows = conn.execute(v_query).fetchall()
+        for r in v_rows:
+            d = dict(r)
+            results.append({
+                "type": "number",
+                "id": d["id"],
+                "db_id": d["id"],
+                "user_id": d["user_id"],
+                "server": d.get("server", 1),
+                "country": d.get("country", ""),
+                "number": d.get("number", ""),
+                "hash_code": d.get("hash_code", ""),
+                "sms_code": d.get("sms_code", ""),
+                "price": float(d.get("price", 0.0) or 0.0),
+                "status": d.get("status", "waiting"),
+                "created_at": d.get("created_at", "")
+            })
+    
+    conn.close()
+    
+    # Sana bo'yicha teskari saralash (eng yangi birinchi)
+    results.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    return results[offset:offset + limit]
+
+
+def update_virtual_number_status(order_id: int, status: str):
+    """Virtual raqam holatini yangilash"""
+    conn = get_connection()
+    conn.execute("UPDATE virtual_numbers SET status = ? WHERE id = ?", (status, order_id))
+    conn.commit()
+    conn.close()
+
+
+def search_order_anywhere(query: str):
+    """Buyurtmani ID, Raqam yoki boshqa parametr bo'yicha qidirish (SMM, Stars, Virtual Raqam)"""
+    conn = get_connection()
+    clean_q = query.strip().replace("#", "")
+    
+    # 1. Orders jadvalidan ID bo'yicha
+    if clean_q.isdigit():
+        oid = int(clean_q)
+        row = conn.execute("SELECT * FROM orders WHERE order_id = ? OR id = ?", (oid, oid)).fetchone()
+        if row:
+            conn.close()
+            d = dict(row)
+            return {
+                "type": "stars" if d.get("service_id") == 9999 else "smm",
+                **d
+            }
+        
+        # 2. Virtual raqamlar jadvalidan ID bo'yicha
+        vrow = conn.execute("SELECT * FROM virtual_numbers WHERE id = ?", (oid,)).fetchone()
+        if vrow:
+            conn.close()
+            return {"type": "number", **dict(vrow)}
+            
+    # 3. Virtual raqamlar jadvalidan telefon raqami bo'yicha
+    vrow_num = conn.execute("SELECT * FROM virtual_numbers WHERE number LIKE ? OR hash_code LIKE ?", (f"%{clean_q}%", f"%{clean_q}%")).fetchone()
+    if vrow_num:
+        conn.close()
+        return {"type": "number", **dict(vrow_num)}
+        
+    conn.close()
+    return None
+
+
+
 # ──────────────────────────────────────────
 #  Majburiy Obuna Kanallari funksiyalari
 # ──────────────────────────────────────────

@@ -44,9 +44,17 @@ from database import (
     get_mandatory_channel_by_id,
     delete_mandatory_channel,
     delete_mandatory_channel_by_channel_id,
+    get_all_orders_count,
+    get_all_unified_orders,
+    update_virtual_number_status,
+    search_order_anywhere,
+    get_virtual_number_by_id,
+    update_virtual_number_sms,
+    get_user_unified_orders
 )
 from smm_api import smm_api
-from number_api import number_api
+from number_api import number_api, get_country_display
+from aiogram.exceptions import TelegramBadRequest
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -229,71 +237,182 @@ def admin_user_card_kb(user_id: int, user_is_banned: bool) -> InlineKeyboardMark
     return builder.as_markup()
 
 
-def admin_orders_kb() -> InlineKeyboardMarkup:
-    """Buyurtmalar bo'limi menyusi"""
+def admin_orders_kb(counts: dict = None) -> InlineKeyboardMarkup:
+    """Buyurtmalar bo'limi asosiy menyusi"""
+    if not counts:
+        counts = get_all_orders_count()
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="So'nggi buyurtmalar", 
-            callback_data="adm:recent_orders",
-            icon_custom_emoji_id="5895288113537748673"
-            ),
+            text=f"📦 SMM ({counts.get('smm', 0)})", 
+            callback_data="adm:ords:smm:1",
+            icon_custom_emoji_id="6028346797368283073"
+        ),
         InlineKeyboardButton(
-            text="Faol buyurtmalar", 
-            callback_data="adm:active_orders",
-            icon_custom_emoji_id="5215522595922779944"
-            ),
+            text=f"⭐ Stars ({counts.get('stars', 0)})", 
+            callback_data="adm:ords:stars:1",
+            icon_custom_emoji_id="5897792062291449826"
+        ),
     )
     builder.row(
         InlineKeyboardButton(
-            text="ID bo'yicha qidirish", 
+            text=f"📱 Raqamlar ({counts.get('number', 0)})", 
+            callback_data="adm:ords:number:1",
+            icon_custom_emoji_id="5859232223865081255"
+        ),
+        InlineKeyboardButton(
+            text=f"⏳ Faol ({counts.get('active', 0)})", 
+            callback_data="adm:ords:active:1",
+            icon_custom_emoji_id="5215522595922779944"
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"📋 Barchasi ({counts.get('total', 0)})", 
+            callback_data="adm:ords:all:1",
+            icon_custom_emoji_id="5895288113537748673"
+        ),
+        InlineKeyboardButton(
+            text="🔍 Qidirish", 
             callback_data="adm:search_order",
             icon_custom_emoji_id="5879939498149679716"
-            ),
+        ),
     )
     builder.row(
         InlineKeyboardButton(
             text="Asosiy Panel", 
             callback_data="adm:main",
             icon_custom_emoji_id="5416113713428057601"
-            ),
+        ),
     )
     return builder.as_markup()
 
 
-def admin_order_card_kb(order_id: int) -> InlineKeyboardMarkup:
-    """Alohida buyurtma boshqaruv tugmalari"""
+def admin_orders_list_kb(orders: list, category: str, page: int, total_pages: int) -> InlineKeyboardMarkup:
+    """Buyurtmalar ro'yxati va sahifalash klaviaturasi"""
     builder = InlineKeyboardBuilder()
+    for item in orders:
+        itype = item.get("type", "smm")
+        oid = item["id"]
+        st = item.get("status", "Pending")
+        price = float(item.get("price", 0.0) or 0.0)
+
+        if itype == "stars":
+            qty = item.get("quantity", 0)
+            btn_text = f"⭐ #{oid} • {qty} Stars ({st})"
+            emoji_id = "5897792062291449826"
+        elif itype == "number":
+            num_str = item.get("number") or "Noma'lum"
+            btn_text = f"📱 #{oid} • {num_str} ({st})"
+            emoji_id = "5859232223865081255"
+        else:
+            title = (item.get("title") or "SMM Xizmat")[:15]
+            btn_text = f"📦 #{oid} • {title} ({st})"
+            emoji_id = "6028346797368283073"
+
+        builder.row(InlineKeyboardButton(
+            text=btn_text,
+            callback_data=f"adm:oview:{itype}:{oid}",
+            icon_custom_emoji_id=emoji_id
+        ))
+
+    # Sahifalash
+    if total_pages > 1:
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append(InlineKeyboardButton(text="Oldingi", callback_data=f"adm:ords:{category}:{page - 1}", icon_custom_emoji_id="5416113713428057601"))
+        nav_buttons.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop", icon_custom_emoji_id="6323234179555263965"))
+        if page < total_pages:
+            nav_buttons.append(InlineKeyboardButton(text="Keyingi", callback_data=f"adm:ords:{category}:{page + 1}", icon_custom_emoji_id="5415758949129404605"))
+        builder.row(*nav_buttons)
+
+    # Yangilash va orqaga
     builder.row(
-        InlineKeyboardButton(
-            text="APIdan tekshirish", 
-            callback_data=f"adm:chkord:{order_id}",
-            icon_custom_emoji_id="5895288113537748673"
-            ),
+        InlineKeyboardButton(text="Yangilash", callback_data=f"adm:ords:{category}:{page}", icon_custom_emoji_id="5346269127059196142"),
+        InlineKeyboardButton(text="Bo'limlar", callback_data="adm:orders", icon_custom_emoji_id="6026239398650056451")
     )
     builder.row(
-        InlineKeyboardButton(
-            text="Completed qilish", 
-            callback_data=f"adm:setord_comp:{order_id}",
-            icon_custom_emoji_id="6011046912078787676"
-            ),
-        InlineKeyboardButton(
-            text="Bekor & Refund", 
-            callback_data=f"adm:setord_ref:{order_id}",
-            icon_custom_emoji_id="6040291696079575101"
-            ),
+        InlineKeyboardButton(text="Asosiy Panel", callback_data="adm:main", icon_custom_emoji_id="5416113713428057601")
     )
+    return builder.as_markup()
+
+
+def admin_order_card_kb(item_type: str, item_id: int, user_id: int) -> InlineKeyboardMarkup:
+    """Alohida buyurtma boshqaruv tugmalari (SMM, Stars, Raqam)"""
+    builder = InlineKeyboardBuilder()
+    
+    if item_type == "smm":
+        builder.row(
+            InlineKeyboardButton(
+                text="APIdan tekshirish", 
+                callback_data=f"adm:chkord:{item_id}",
+                icon_custom_emoji_id="5895288113537748673"
+            ),
+        )
+        builder.row(
+            InlineKeyboardButton(
+                text="Completed qilish", 
+                callback_data=f"adm:setord_comp:{item_id}",
+                icon_custom_emoji_id="6011046912078787676"
+            ),
+            InlineKeyboardButton(
+                text="Bekor & Refund", 
+                callback_data=f"adm:setord_ref:{item_id}",
+                icon_custom_emoji_id="6040291696079575101"
+            ),
+        )
+    elif item_type == "stars":
+        builder.row(
+            InlineKeyboardButton(
+                text="Completed qilish", 
+                callback_data=f"adm:setord_comp:{item_id}",
+                icon_custom_emoji_id="6011046912078787676"
+            ),
+            InlineKeyboardButton(
+                text="Bekor & Refund", 
+                callback_data=f"adm:setord_ref:{item_id}",
+                icon_custom_emoji_id="6040291696079575101"
+            ),
+        )
+    elif item_type == "number":
+        builder.row(
+            InlineKeyboardButton(
+                text="SMS tekshirish (API)", 
+                callback_data=f"adm:chknum_sms:{item_id}",
+                icon_custom_emoji_id="5456432998092133477"
+            ),
+        )
+        builder.row(
+            InlineKeyboardButton(
+                text="Completed qilish", 
+                callback_data=f"adm:setnum_comp:{item_id}",
+                icon_custom_emoji_id="6011046912078787676"
+            ),
+            InlineKeyboardButton(
+                text="Bekor & Refund", 
+                callback_data=f"adm:setnum_ref:{item_id}",
+                icon_custom_emoji_id="6040291696079575101"
+            ),
+        )
+
     builder.row(
+        InlineKeyboardButton(
+            text="Foydalanuvchi profili", 
+            callback_data=f"adm:uview:{user_id}",
+            icon_custom_emoji_id="6032609071373226027"
+        ),
         InlineKeyboardButton(
             text="Buyurtmalar", 
             callback_data="adm:orders",
             icon_custom_emoji_id="5854908544712707500"
-            ),
+        ),
+    )
+    builder.row(
         InlineKeyboardButton(
             text="Asosiy Panel", 
             callback_data="adm:main",
             icon_custom_emoji_id="5416113713428057601"
-            ),
+        ),
     )
     return builder.as_markup()
 
@@ -792,90 +911,98 @@ async def process_pm_message(message: types.Message, state: FSMContext, bot: Bot
 
 
 # ──────────────────────────────────────────
-#  📦 BUYURTMALAR BO'LIMI
+#  📦 BUYURTMALAR BO'LIMI (SMM, Stars, Raqamlar)
 # ──────────────────────────────────────────
 @router.callback_query(F.data == "adm:orders", F.from_user.func(lambda u: u.id in ADMINS))
 async def cb_orders_menu(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
+    counts = get_all_orders_count()
     text = (
-        '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>SMM Buyurtmalar Nazorati</b>\n\n'
-        'Oxirgi buyurtmalar, kutilayotganlarni ko\'rish va buyurtma holatini boshqarish:'
+        '<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Barcha Buyurtmalar Boshqaruvi</b>\n\n'
+        'Kerakli buyurtmalar toifasini tanlang:\n\n'
+        f'<tg-emoji emoji-id="6028346797368283073">📦</tg-emoji> <b>SMM Buyurtmalari:</b> <code>{counts.get("smm", 0)} ta</code>\n'
+        f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars:</b> <code>{counts.get("stars", 0)} ta</code>\n'
+        f'<tg-emoji emoji-id="5859232223865081255">📱</tg-emoji> <b>Virtual Raqamlar:</b> <code>{counts.get("number", 0)} ta</code>\n'
+        f'<tg-emoji emoji-id="5215522595922779944">⏳</tg-emoji> <b>Faol / Kutilayotgan:</b> <code>{counts.get("active", 0)} ta</code>\n\n'
+        f'<tg-emoji emoji-id="5444965061749644170">📊</tg-emoji> <b>Jami barcha buyurtmalar:</b> <b>{counts.get("total", 0)} ta</b>'
     )
-    await callback.message.edit_text(text, reply_markup=admin_orders_kb(), parse_mode="HTML")
-    await callback.answer()
-
-
-@router.callback_query(F.data == "adm:recent_orders", F.from_user.func(lambda u: u.id in ADMINS))
-async def cb_recent_orders(callback: types.CallbackQuery):
-    orders = get_recent_orders(8)
-    if not orders:
-        await callback.message.edit_text("Hozircha buyurtmalar yo'q.", reply_markup=admin_back_kb("orders"))
+    try:
+        await callback.message.edit_text(text, reply_markup=admin_orders_kb(counts), parse_mode="HTML")
         await callback.answer()
-        return
-
-    builder = InlineKeyboardBuilder()
-    text_lines = ["📋 <b>So'nggi buyurtmalar ro'yxati:</b>\n"]
-    for ord_item in orders:
-        oid = ord_item["order_id"]
-        title = (ord_item.get("service_title") or "Xizmat")[:18]
-        st = ord_item.get("status", "Pending")
-        price = float(ord_item.get("price", 0.0) or 0.0)
-        text_lines.append(f"🆔 <code>#{oid}</code> | {title} | <b>{price:,.0f} so'm</b> ({st})")
-        builder.row(InlineKeyboardButton(
-            text=f"#{oid} - {title} ({st})", 
-            callback_data=f"adm:oview:{oid}",
-            icon_custom_emoji_id="5854908544712707500"
-        ))
-
-    builder.row(InlineKeyboardButton(
-        text="Orqaga", 
-        callback_data="adm:orders",
-        icon_custom_emoji_id="5307502033103915040"
-    ))
-    await callback.message.edit_text("\n".join(text_lines), reply_markup=builder.as_markup(), parse_mode="HTML")
-    await callback.answer()
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            await callback.answer("✅ Yangilandi")
+        else:
+            await callback.answer()
+    except Exception:
+        await callback.answer()
 
 
-@router.callback_query(F.data == "adm:active_orders", F.from_user.func(lambda u: u.id in ADMINS))
-async def cb_active_orders(callback: types.CallbackQuery):
-    orders = get_active_orders()
+@router.callback_query(F.data.startswith("adm:ords:"), F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_admin_orders_category(callback: types.CallbackQuery):
+    parts = callback.data.split(":")
+    category = parts[2] if len(parts) > 2 else "all"
+    page = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 1
+
+    PAGE_SIZE = 8
+    counts = get_all_orders_count()
+    cat_total = counts.get(category, counts.get("total", 0))
+    total_pages = max(1, (cat_total + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * PAGE_SIZE
+
+    orders = get_all_unified_orders(category=category, limit=PAGE_SIZE, offset=offset)
+
+    category_names = {
+        "smm": '<tg-emoji emoji-id="6028346797368283073">📦</tg-emoji> <b>SMM Buyurtmalari</b>',
+        "stars": '<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars Buyurtmalari</b>',
+        "number": '<tg-emoji emoji-id="5859232223865081255">📱</tg-emoji> <b>Virtual Raqamlar</b>',
+        "active": '<tg-emoji emoji-id="5215522595922779944">⏳</tg-emoji> <b>Faol / Kutilayotgan Buyurtmalar</b>',
+        "all": '<tg-emoji emoji-id="5895288113537748673">📋</tg-emoji> <b>Barcha Buyurtmalar</b>'
+    }
+    cat_title = category_names.get(category, "<b>Buyurtmalar</b>")
+
     if not orders:
-        await callback.message.edit_text(
-            '<tg-emoji emoji-id="6026257381678124710">✅</tg-emoji> Hozirda faol/kutilayotgan buyurtmalar yo\'q.', 
-            reply_markup=admin_back_kb("orders"),
-            parse_mode="HTML"
+        text = f"{cat_title}\n\n<i>Ushbu bo'limda hozircha buyurtmalar yo'q.</i>"
+    else:
+        text = (
+            f"{cat_title}\n"
+            f"📊 <b>Jami:</b> <b>{cat_total} ta</b> | Sahifa: <b>{page}/{total_pages}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Batafsil ko'rish va boshqarish uchun buyurtma tugmasini bosing:</i>"
         )
+
+    kb = admin_orders_list_kb(orders=orders, category=category, page=page, total_pages=total_pages)
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer("✅ Yangilandi")
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            await callback.answer("✅ Yangilandi")
+        else:
+            await callback.answer()
+    except Exception:
         await callback.answer()
-        return
 
-    builder = InlineKeyboardBuilder()
-    text_lines = [f'<tg-emoji emoji-id="5849724424957851226">⏳</tg-emoji> <b>Hozirda faol buyurtmalar ({len(orders)} ta):</b>\n']
-    for ord_item in orders[:8]:
-        oid = ord_item["order_id"]
-        title = (ord_item.get("service_title") or "Xizmat")[:18]
-        st = ord_item.get("status", "Pending")
-        text_lines.append(f"🆔 <code>#{oid}</code> | {title} | <b>{st}</b>")
-        builder.row(InlineKeyboardButton(
-            text=f"#{oid} - {title}", 
-            callback_data=f"adm:oview:{oid}",
-            icon_custom_emoji_id="5849724424957851226"
-        ))
 
-    builder.row(InlineKeyboardButton(
-        text="Orqaga", 
-        callback_data="adm:orders",
-        icon_custom_emoji_id="5307502033103915040"
-    ))
-    await callback.message.edit_text("\n".join(text_lines), reply_markup=builder.as_markup(), parse_mode="HTML")
-    await callback.answer()
+@router.callback_query(F.data.startswith("adm:oview:"), F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_order_view(callback: types.CallbackQuery):
+    parts = callback.data.split(":")
+    if len(parts) >= 4:
+        itype = parts[2]
+        oid = parts[3]
+        await send_order_card(callback, oid, item_type=itype)
+    else:
+        oid = parts[2]
+        await send_order_card(callback, oid)
 
 
 @router.callback_query(F.data == "adm:search_order", F.from_user.func(lambda u: u.id in ADMINS))
 async def cb_search_order_prompt(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(AdminState.waiting_order_search)
     await callback.message.edit_text(
-        '<tg-emoji emoji-id="6022479300876686639">🔍</tg-emoji> <b>Buyurtma ID si bo\'yicha qidirish</b>\n\n'
-        'Buyurtma raqamini kiriting (masalan: <code>7016513</code>):',
+        '<tg-emoji emoji-id="6022479300876686639">🔍</tg-emoji> <b>Buyurtmani Qidirish</b>\n\n'
+        'Buyurtma <b>ID raqami</b> (masalan: <code>7016513</code>) yoki <b>Telefon raqami</b>ni yuboring:',
         reply_markup=admin_back_kb("orders"),
         parse_mode="HTML"
     )
@@ -885,19 +1012,39 @@ async def cb_search_order_prompt(callback: types.CallbackQuery, state: FSMContex
 @router.message(AdminState.waiting_order_search, F.from_user.func(lambda u: u.id in ADMINS))
 async def process_order_search(message: types.Message, state: FSMContext):
     await state.clear()
-    query = message.text.strip().replace("#", "")
-    if not query.isdigit():
-        await message.answer("❌ Noto'g'ri buyurtma ID formati!", reply_markup=admin_orders_kb())
+    query = message.text.strip()
+    item = search_order_anywhere(query)
+    if not item:
+        await message.answer(
+            f"❌ <code>{query}</code> bo'yicha hech qanday buyurtma (SMM, Stars yoki Raqam) topilmadi.", 
+            reply_markup=admin_orders_kb()
+        )
         return
-    oid = int(query)
-    await send_order_card(message, oid)
+    await send_order_card(message, item)
 
 
-async def send_order_card(event: types.Message | types.CallbackQuery, order_id: int):
-    """Buyurtma kartasini chiqarish"""
-    ord_item = get_order_by_id(order_id)
-    if not ord_item:
-        err_text = f"❌ Buyurtma <code>#{order_id}</code> topilmadi."
+async def send_order_card(event: types.Message | types.CallbackQuery, item_or_id, item_type: str = None):
+    """Buyurtma kartasini chiqarish (SMM, Stars, Raqam)"""
+    if isinstance(item_or_id, dict):
+        item = item_or_id
+        itype = item.get("type") or item_type or "smm"
+    else:
+        raw_id = str(item_or_id).strip().replace("#", "")
+        if item_type == "number":
+            v_item = get_virtual_number_by_id(int(raw_id)) if raw_id.isdigit() else None
+            item = {"type": "number", **v_item} if v_item else None
+        elif item_type in ["smm", "stars"]:
+            o_item = get_order_by_id(int(raw_id)) if raw_id.isdigit() else None
+            if o_item:
+                is_stars = (o_item.get("service_id") == 9999)
+                item = {"type": "stars" if is_stars else "smm", **o_item}
+            else:
+                item = None
+        else:
+            item = search_order_anywhere(raw_id)
+            
+    if not item:
+        err_text = "❌ Buyurtma topilmadi."
         if isinstance(event, types.CallbackQuery):
             await event.message.edit_text(err_text, reply_markup=admin_back_kb("orders"), parse_mode="HTML")
             await event.answer()
@@ -905,28 +1052,60 @@ async def send_order_card(event: types.Message | types.CallbackQuery, order_id: 
             await event.answer(err_text, reply_markup=admin_back_kb("orders"), parse_mode="HTML")
         return
 
-    oid = ord_item["order_id"]
-    uid = ord_item["user_id"]
-    st = ord_item.get("status", "Pending")
-    title = ord_item.get("service_title", "—")
-    qty = ord_item.get("quantity", 0)
-    price = float(ord_item.get("price", 0.0) or 0.0)
-    link = ord_item.get("link", "—")
-    created = ord_item.get("created_at", "—")
+    itype = item.get("type", "smm")
+    oid = item.get("order_id") or item.get("id")
+    uid = item.get("user_id")
+    price = float(item.get("price", 0.0) or 0.0)
+    st = item.get("status", "Pending")
+    created = item.get("created_at", "—")
 
-    text = (
-        f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Buyurtma Kartasi</b>\n\n'
-        f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{oid}</code>\n'
-        f'👤 <b>Buyurtmachi ID:</b> <code>{uid}</code>\n'
-        f'📌 <b>Xizmat:</b> <b>{title}</b>\n'
-        f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdor:</b> <b>{qty:,} ta</b>\n'
-        f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narxi:</b> <b>{price:,.0f} so\'m</b>\n'
-        f'📊 <b>Status:</b> <code>{st}</code>\n'
-        f'<tg-emoji emoji-id="5201989772448381592">🔗</tg-emoji> <b>Havola:</b> {link}\n'
-        f'📅 <b>Sana:</b> {created}'
-    )
+    if itype == "stars":
+        qty = item.get("quantity", 0)
+        link = item.get("link", "—")
+        text = (
+            f'<tg-emoji emoji-id="5897792062291449826">⭐</tg-emoji> <b>Telegram Stars Buyurtmasi</b>\n\n'
+            f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{oid}</code>\n'
+            f'👤 <b>Foydalanuvchi ID:</b> <code>{uid}</code>\n'
+            f'🌟 <b>Miqdor:</b> <b>{qty:,} Stars</b>\n'
+            f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>To\'lov:</b> <b>{price:,.0f} so\'m</b>\n'
+            f'📊 <b>Status:</b> <code>{st}</code>\n'
+            f'👤 <b>Qabul qiluvchi:</b> <code>{link}</code>\n'
+            f'📅 <b>Sana:</b> {created}'
+        )
+    elif itype == "number":
+        server = item.get("server", 1)
+        country = item.get("country", "")
+        flag, country_name = get_country_display(country)
+        number_str = item.get("number", "—")
+        sms_code = item.get("sms_code") or "<i>Kutilmoqda...</i>"
+        text = (
+            f'<tg-emoji emoji-id="5859232223865081255">📱</tg-emoji> <b>Virtual Raqam Buyurtmasi</b>\n\n'
+            f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Raqam ID:</b> <code>#{oid}</code>\n'
+            f'👤 <b>Foydalanuvchi ID:</b> <code>{uid}</code>\n'
+            f'🌍 <b>Davlat:</b> {flag} <b>{country_name}</b> (Server {server})\n'
+            f'📞 <b>Raqam:</b> <code>{number_str}</code>\n'
+            f'<tg-emoji emoji-id="5456432998092133477">🔑</tg-emoji> <b>SMS Kod:</b> <code>{sms_code}</code>\n'
+            f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narxi:</b> <b>{price:,.0f} so\'m</b>\n'
+            f'📊 <b>Status:</b> <code>{st}</code>\n'
+            f'📅 <b>Sana:</b> {created}'
+        )
+    else: # SMM
+        title = item.get("service_title") or item.get("title") or "SMM Xizmat"
+        qty = item.get("quantity", 0)
+        link = item.get("link", "—")
+        text = (
+            f'<tg-emoji emoji-id="6028346797368283073">📦</tg-emoji> <b>SMM Buyurtma Kartasi</b>\n\n'
+            f'<tg-emoji emoji-id="5841276284155467413">🆔</tg-emoji> <b>Buyurtma ID:</b> <code>#{oid}</code>\n'
+            f'👤 <b>Foydalanuvchi ID:</b> <code>{uid}</code>\n'
+            f'📌 <b>Xizmat:</b> <b>{title}</b>\n'
+            f'<tg-emoji emoji-id="6323436631428695574">🔢</tg-emoji> <b>Miqdor:</b> <b>{qty:,} ta</b>\n'
+            f'<tg-emoji emoji-id="5379872186678914958">💰</tg-emoji> <b>Narxi:</b> <b>{price:,.0f} so\'m</b>\n'
+            f'📊 <b>Status:</b> <code>{st}</code>\n'
+            f'<tg-emoji emoji-id="5201989772448381592">🔗</tg-emoji> <b>Havola:</b> {link}\n'
+            f'📅 <b>Sana:</b> {created}'
+        )
 
-    kb = admin_order_card_kb(oid)
+    kb = admin_order_card_kb(itype, oid, uid)
     if isinstance(event, types.CallbackQuery):
         try:
             await event.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
@@ -935,12 +1114,6 @@ async def send_order_card(event: types.Message | types.CallbackQuery, order_id: 
         await event.answer()
     else:
         await event.answer(text, reply_markup=kb, parse_mode="HTML")
-
-
-@router.callback_query(F.data.startswith("adm:oview:"), F.from_user.func(lambda u: u.id in ADMINS))
-async def cb_order_view(callback: types.CallbackQuery):
-    oid = int(callback.data.split(":")[2])
-    await send_order_card(callback, oid)
 
 
 @router.callback_query(F.data.startswith("adm:chkord:"), F.from_user.func(lambda u: u.id in ADMINS))
@@ -954,10 +1127,39 @@ async def cb_check_order_api(callback: types.CallbackQuery):
     api_status = resp.get("status")
     remains = resp.get("remains", "0")
     charge = resp.get("charge", "—")
+    if api_status:
+        update_order_status(oid, str(api_status).capitalize())
     await callback.answer(
         f"GrandSMM Status: {api_status}\nQoldiq (Remains): {remains}\nAPI Charge: {charge}",
         show_alert=True
     )
+    await send_order_card(callback, oid, item_type="smm")
+
+
+@router.callback_query(F.data.startswith("adm:chknum_sms:"), F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_admin_check_number_sms(callback: types.CallbackQuery):
+    order_id = int(callback.data.split(":")[2])
+    record = get_virtual_number_by_id(order_id)
+    if not record:
+        await callback.answer("⚠️ Raqam ma'lumotlari topilmadi.", show_alert=True)
+        return
+
+    server = record["server"]
+    hash_code = record.get("hash_code", "")
+    number_str = record["number"]
+
+    resp = await number_api.get_code(server=server, hash_code=hash_code, number=number_str)
+    if resp.get("success") and resp.get("status") == "ok":
+        code = resp.get("code", "")
+        update_virtual_number_sms(order_id, code, "received")
+        await callback.answer(f"🎉 SMS Kod Qabul Qilindi: {code}", show_alert=True)
+    elif resp.get("status") == "waiting":
+        await callback.answer("⏳ SMS kod hali kelmadi (Kutilmoqda)", show_alert=True)
+    else:
+        err = resp.get("error", "Kod tekshirishda xatolik")
+        await callback.answer(f"⚠️ {err}", show_alert=True)
+
+    await send_order_card(callback, order_id, item_type="number")
 
 
 @router.callback_query(F.data.startswith("adm:setord_comp:"), F.from_user.func(lambda u: u.id in ADMINS))
@@ -981,25 +1183,60 @@ async def cb_set_order_refund(callback: types.CallbackQuery):
     await send_order_card(callback, oid)
 
 
+@router.callback_query(F.data.startswith("adm:setnum_comp:"), F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_set_number_completed(callback: types.CallbackQuery):
+    oid = int(callback.data.split(":")[2])
+    update_virtual_number_status(oid, "completed")
+    await callback.answer("✅ Raqam statusi 'Completed' ga o'zgartirildi!", show_alert=True)
+    await send_order_card(callback, oid, item_type="number")
+
+
+@router.callback_query(F.data.startswith("adm:setnum_ref:"), F.from_user.func(lambda u: u.id in ADMINS))
+async def cb_set_number_refund(callback: types.CallbackQuery):
+    oid = int(callback.data.split(":")[2])
+    vnum = get_virtual_number_by_id(oid)
+    if vnum:
+        uid = vnum["user_id"]
+        price = float(vnum.get("price", 0.0) or 0.0)
+        update_virtual_number_status(oid, "canceled")
+        add_user_balance(uid, price)
+        await callback.answer(f"❌ Raqam bekor qilindi va {price:,.0f} so'm foydalanuvchiga qaytarildi!", show_alert=True)
+    await send_order_card(callback, oid, item_type="number")
+
+
 @router.callback_query(F.data.startswith("adm:uorders:"), F.from_user.func(lambda u: u.id in ADMINS))
 async def cb_user_orders_list(callback: types.CallbackQuery):
     uid = int(callback.data.split(":")[2])
-    orders = get_user_orders(uid, limit=8)
+    orders = get_user_unified_orders(uid, category="all", limit=8, offset=0)
     if not orders:
         await callback.answer("Bu foydalanuvchida buyurtmalar mavjud emas.", show_alert=True)
         return
 
     builder = InlineKeyboardBuilder()
-    text_lines = [f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Foydalanuvchi <code>{uid}</code> ning so\'nggi buyurtmalari:</b>\n']
+    text_lines = [f'<tg-emoji emoji-id="5854908544712707500">📦</tg-emoji> <b>Foydalanuvchi <code>{uid}</code> ning barcha buyurtmalari:</b>\n']
     for o in orders:
-        oid = o["order_id"]
-        title = (o.get("service_title") or "Xizmat")[:18]
+        itype = o.get("type", "smm")
+        oid = o["id"]
         st = o.get("status", "Pending")
-        text_lines.append(f"🆔 <code>#{oid}</code> | {title} | <b>{st}</b>")
+        price = float(o.get("price", 0.0) or 0.0)
+
+        if itype == "stars":
+            qty = o.get("quantity", 0)
+            btn_text = f"⭐ #{oid} • {qty} Stars ({st})"
+            emoji_id = "5897792062291449826"
+        elif itype == "number":
+            num_str = o.get("number") or "Noma'lum"
+            btn_text = f"📱 #{oid} • {num_str} ({st})"
+            emoji_id = "5859232223865081255"
+        else:
+            title = (o.get("title") or "SMM Xizmat")[:15]
+            btn_text = f"📦 #{oid} • {title} ({st})"
+            emoji_id = "6028346797368283073"
+
         builder.row(InlineKeyboardButton(
-            text=f"#{oid} - {title}", 
-            callback_data=f"adm:oview:{oid}",
-            icon_custom_emoji_id="5854908544712707500"
+            text=btn_text, 
+            callback_data=f"adm:oview:{itype}:{oid}",
+            icon_custom_emoji_id=emoji_id
         ))
 
     builder.row(InlineKeyboardButton(
